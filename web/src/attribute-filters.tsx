@@ -202,14 +202,7 @@ export const availableAttributes = ({
       name: 'Containers',
       label: containerLabel,
       id: 'container',
-      options: resourceDataSource({
-        resource: 'pods',
-        mapper: (resource) =>
-          resource?.spec?.containers.map((container) => ({
-            option: `${resource?.metadata?.name} / ${container.name}`,
-            value: `${resource?.metadata?.name} / ${container.name}`,
-          })) ?? [],
-      }),
+      options: getContainerAttributeOptions(tenant, config, schema),
       expandSelection: (selections) => {
         const podSelections = new Set<string>();
         const containerSelections = new Set<string>();
@@ -219,6 +212,8 @@ export const availableAttributes = ({
             const [pod, containerName] = container.split(' / ');
             podSelections.add(pod);
             containerSelections.add(containerName);
+          } else {
+            containerSelections.add(container);
           }
         }
 
@@ -228,6 +223,10 @@ export const availableAttributes = ({
         ]);
       },
       isItemSelected: (value, filters) => {
+        if (!value.includes('/')) {
+          return filters?.container?.has(value) ?? false;
+        }
+
         const parts = value.split(' / ');
         if (parts.length !== 2) {
           return false;
@@ -661,19 +660,50 @@ const getPodAttributeOptions = (
         labelName: podLabel,
       })(),
       resourceDataSource({ resource: 'pods' })(),
-    ])
-      .then((results) => {
-        const podsAsStrings = new Set<string>();
-        results.forEach((result) => {
-          if (result.status === 'fulfilled') {
-            result.value.forEach((option) => {
-              podsAsStrings.add(JSON.stringify(option));
-            });
-          }
-        });
-        return Array.from(podsAsStrings).map((stringOption) => JSON.parse(stringOption) as Option);
-      })
-      .catch(() => {
-        return [] as Option[];
+    ]).then((results) => {
+      const podOptions: Set<Option> = new Set();
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          result.value.forEach((option) => {
+            podOptions.add(option);
+          });
+        }
       });
+      return Array.from(podOptions);
+    });
+};
+
+const getContainerAttributeOptions = (
+  tenant: string,
+  config: Config,
+  schema: Schema,
+): (() => Promise<Option[]>) => {
+  const { containerLabel } = getAttributeLabels(schema);
+
+  return () =>
+    Promise.allSettled<Promise<Option[]>>([
+      lokiLabelValuesDataSource({
+        config,
+        tenant,
+        labelName: containerLabel,
+      })(),
+      resourceDataSource({
+        resource: 'pods',
+        mapper: (resource) =>
+          resource?.spec?.containers.map((container) => ({
+            option: `${resource?.metadata?.name} / ${container.name}`,
+            value: `${resource?.metadata?.name} / ${container.name}`,
+          })) ?? [],
+      })(),
+    ]).then((results) => {
+      const uniqueContainers = new Set<Option>();
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          result.value.forEach((option) => {
+            uniqueContainers.add(option);
+          });
+        }
+      });
+      return Array.from(uniqueContainers);
+    });
 };

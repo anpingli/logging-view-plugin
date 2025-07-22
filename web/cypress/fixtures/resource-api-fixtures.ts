@@ -48,6 +48,10 @@ export const podsLabelValuesResponse = {
   data: ['my-pod', 'default', 'gitops', 'gitops-service-argocd'],
 };
 
+export const containersLabelValuesResponse = {
+  data: ['my-container-from-labels', 'my-container', 'container-1', 'container-2', 'container-3'],
+};
+
 export const podsListResponse = {
   kind: 'PodList',
   apiVersion: 'v1',
