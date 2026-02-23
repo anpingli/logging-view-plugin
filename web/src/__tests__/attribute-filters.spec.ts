@@ -351,6 +351,10 @@ describe('Attribute filters', () => {
         expectedFilters: { pod: new Set(['a-pod', 'b-pod']) },
       },
       {
+        query: '{ kubernetes_pod_name=~`a-pod|b-pod` }',
+        expectedFilters: { pod: new Set(['a-pod', 'b-pod']) },
+      },
+      {
         query:
           '{ kubernetes_pod_name=~"a-pod|b-pod", kubernetes_namespace_name=~"ns-1|ns-2", label="test" } |=`some line content` | other="filter" | level="inf"',
         expectedFilters: {
@@ -542,6 +546,13 @@ describe('Attribute filters', () => {
       },
       {
         initialQuery:
+          '{ kubernetes_pod_name=~`a-pod|b-pod`, kubernetes_namespace_name=~`ns-1|ns-2`, label=`test`, kubernetes_container_name=`container-1` } |=`some line content` | other=`filter` | level=`err|eror` or level=`unknown` or level=``',
+        filters: undefined,
+        expectedQuery:
+          '{ kubernetes_pod_name=~`a-pod|b-pod`, kubernetes_namespace_name=~`ns-1|ns-2`, label=`test`, kubernetes_container_name=`container-1` } |= `some line content` | other=`filter` | level=`err|eror` or level=`unknown` or level=``',
+      },
+      {
+        initialQuery:
           '{ kubernetes_pod_name=~"a-pod|b-pod", kubernetes_namespace_name=~"ns-1|ns-2", label="test", kubernetes_container_name="container-1" } |="some line content" | other="filter" | level="err|eror" or level="unknown" or level=""',
         filters: {},
         expectedQuery: '{ label="test" } | other="filter"',
@@ -647,6 +658,19 @@ describe('Attribute filters', () => {
         schema: Schema.otel,
         expectedQuery:
           '{ kubernetes_pod_name=~"a-pod|b-pod", kubernetes_namespace_name=~"ns-1|ns-2", label="test", kubernetes_container_name="container-1", k8s_namespace_name=~"namespace-3|namespace-4" } | other="filter" | level=~"err|error|eror" or level="unknown" or level=""',
+      },
+      {
+        initialQuery:
+          '{ kubernetes_pod_name=~`a-pod|b-pod`, kubernetes_namespace_name=~`ns-1|ns-2`, label=`test`, kubernetes_container_name=`container-1` } |=`some line content` | other="filter" | level=~"err|error|eror" or level="unknown" or level=""',
+        filters: {
+          namespace: new Set(['namespace-3', 'namespace-4']),
+          content: new Set<string>(),
+          severity: new Set<string>(),
+          pod: new Set<string>(),
+        },
+        schema: Schema.otel,
+        expectedQuery:
+          '{ kubernetes_pod_name=~`a-pod|b-pod`, kubernetes_namespace_name=~`ns-1|ns-2`, label=`test`, kubernetes_container_name=`container-1`, k8s_namespace_name=~"namespace-3|namespace-4" } | other="filter" | level=~"err|error|eror" or level="unknown" or level=""',
       },
     ].forEach(
       ({
