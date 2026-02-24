@@ -1,25 +1,25 @@
 import {
   Alert,
-  Spinner,
+  Badge,
+  Button,
   MenuToggle,
   MenuToggleElement,
-  SelectList,
   Select,
+  SelectList,
   SelectOption,
+  SelectOptionProps,
+  Spinner,
   TextInputGroup,
   TextInputGroupMain,
   TextInputGroupUtilities,
-  Button,
-  SelectOptionProps,
 } from '@patternfly/react-core';
+import { TimesIcon } from '@patternfly/react-icons';
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { TestIds } from '../../test-ids';
 import { useAttributeValueData } from './attribute-value-data';
 import { Attribute, Filters } from './filter.types';
 import { isOption } from './filters-from-params';
-import './search-select.css';
-import { TimesIcon } from '@patternfly/react-icons';
-import { TestIds } from '../../test-ids';
 
 interface SearchSelectProps {
   attribute: Attribute;
@@ -27,6 +27,7 @@ interface SearchSelectProps {
   filters: Filters;
   customBadgeTextDependsOnData?: boolean;
   isCheckbox?: boolean;
+  tenant?: string;
 }
 
 const ERROR_VALUE = '__attribute_error';
@@ -63,7 +64,23 @@ const getOptionComponents = (
     ];
   }
 
-  return attributeOptions.map((attributeOption, index) => (
+  const sortedOptions = attributeOptions.sort((a, b) => {
+    const aSelected = selections.includes(a.value);
+    const bSelected = selections.includes(b.value);
+
+    if (aSelected && !bSelected) {
+      return -1;
+    }
+    if (!aSelected && bSelected) {
+      return 1;
+    }
+    if (a.children && b.children) {
+      return String(a.children).localeCompare(String(b.children));
+    }
+    return String(a.value).localeCompare(String(b.value));
+  });
+
+  return sortedOptions.map((attributeOption, index) => (
     <SelectOption
       key={attributeOption.value || attributeOption.children}
       value={attributeOption.value}
@@ -73,7 +90,7 @@ const getOptionComponents = (
       id={createItemId(attributeOption.value)}
       onKeyDown={onInputKeyDown}
     >
-      {attributeOption.value}
+      {attributeOption.children ?? attributeOption.value}
     </SelectOption>
   ));
 };
@@ -83,6 +100,7 @@ export const SearchSelect: React.FC<SearchSelectProps> = ({
   onSelect,
   filters,
   isCheckbox = false,
+  tenant,
 }) => {
   const { t } = useTranslation('plugin__logging-view-plugin');
 
@@ -97,6 +115,22 @@ export const SearchSelect: React.FC<SearchSelectProps> = ({
   const [activeItemId, setActiveItemId] = React.useState<string | null>(null);
 
   const textInputRef = React.useRef<HTMLInputElement>();
+  const listRef = React.useRef<HTMLDivElement>(null);
+
+  const handleClickOutside = (event: MouseEvent) => {
+    if (isOpen && !listRef.current?.contains(event.target as Node)) {
+      setIsOpen(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (isOpen) {
+      window.addEventListener('click', handleClickOutside);
+    }
+    return () => {
+      window.removeEventListener('click', handleClickOutside);
+    };
+  }, [isOpen]);
 
   React.useEffect(() => {
     let newSelectOptions: SelectOptionProps[] = attributeOptions.map((attributeOption) => {
@@ -112,7 +146,7 @@ export const SearchSelect: React.FC<SearchSelectProps> = ({
         newSelectOptions = [
           {
             isAriaDisabled: true,
-            children: `No results found for "${inputValue}"`,
+            children: `${t('No results found for')} "${inputValue}"`,
             value: NO_RESULTS,
             hasCheckbox: false,
           },
@@ -133,7 +167,6 @@ export const SearchSelect: React.FC<SearchSelectProps> = ({
   };
 
   const handleClear = () => {
-    onSelect(new Set());
     setInputValue('');
     resetActiveAndFocusedItem();
     textInputRef?.current?.focus();
@@ -195,7 +228,7 @@ export const SearchSelect: React.FC<SearchSelectProps> = ({
 
   React.useEffect(() => {
     getAttributeOptions();
-  }, []);
+  }, [tenant]);
 
   const resetActiveAndFocusedItem = () => {
     setFocusedItemIndex(null);
@@ -272,9 +305,13 @@ export const SearchSelect: React.FC<SearchSelectProps> = ({
       data-test={TestIds.AttributeOptions}
       style={
         {
-          width: '200px',
+          width: '230px',
+          alignItems: 'center',
         } as React.CSSProperties
       }
+      key={`attribute-toggle-${attribute.id}`}
+      className="lv-plugin__typeahead-toggle"
+      badge={!attributeLoading && <Badge isRead>{selections.length}</Badge>}
     >
       <TextInputGroup isPlain>
         <TextInputGroupMain
@@ -293,7 +330,7 @@ export const SearchSelect: React.FC<SearchSelectProps> = ({
           isExpanded={isOpen}
           aria-controls="select-multi-typeahead-checkbox-listbox"
         />
-        {selections.length > 0 && (
+        {inputValue.length > 0 && (
           <TextInputGroupUtilities>
             <Button variant="plain" onClick={handleClear} aria-label="Clear input value">
               <TimesIcon aria-hidden />
@@ -305,7 +342,7 @@ export const SearchSelect: React.FC<SearchSelectProps> = ({
   );
 
   return (
-    <>
+    <div ref={listRef}>
       <span id={titleId} hidden>
         {attribute.name}
       </span>
@@ -321,7 +358,10 @@ export const SearchSelect: React.FC<SearchSelectProps> = ({
         toggle={toggle}
         maxMenuHeight="300px"
       >
-        <SelectList isAriaMultiselectable>
+        <SelectList
+          isAriaMultiselectable
+          key={`select-list-${attribute.id}-${viewableOptions.length}`}
+        >
           {getOptionComponents(
             viewableOptions,
             attributeError,
@@ -332,6 +372,6 @@ export const SearchSelect: React.FC<SearchSelectProps> = ({
           )}
         </SelectList>
       </Select>
-    </>
+    </div>
   );
 };

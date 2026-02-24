@@ -23,13 +23,14 @@ import { RefreshIntervalDropdown } from '../components/refresh-interval-dropdown
 import { TimeRangeDropdown } from '../components/time-range-dropdown';
 import { ToggleHistogramButton } from '../components/toggle-histogram-button';
 import { downloadCSV } from '../download-csv';
-import { LogsConfigProvider } from '../hooks/LogsConfigProvider';
+import { LogsConfigProvider, useLogsConfig } from '../hooks/LogsConfigProvider';
 import { useLogs } from '../hooks/useLogs';
 import { useURLState } from '../hooks/useURLState';
 import { Direction, isMatrixResult, Schema } from '../logs.types';
 import { getStreamLabelsFromSchema, ResourceLabel } from '../parse-resources';
 import { TestIds } from '../test-ids';
 import { getInitialTenantFromNamespace } from '../value-utils';
+import { TimezoneDropdown } from '../components/timezone-dropdown';
 
 /*
 This comment creates an entry in the translations catalogue for console extensions
@@ -54,6 +55,8 @@ const LogsDetailPage: React.FC<LogsDetailPageProps> = ({
   const namespace = namespaceFromParams || namespaceFromProps;
   const podname = podnameFromParams || podNameFromProps;
   const [isHistogramVisible, setIsHistogramVisible] = React.useState(false);
+
+  const { config, configLoaded } = useLogsConfig();
 
   const {
     isLoadingLogsData,
@@ -93,6 +96,8 @@ const LogsDetailPage: React.FC<LogsDetailPageProps> = ({
     timeRange,
     direction,
     setDirectionInURL,
+    timezone,
+    setTimezoneInURL,
     attributes,
   } = useURLState({
     getDefaultQuery: ({ schema: s }) => {
@@ -167,8 +172,12 @@ const LogsDetailPage: React.FC<LogsDetailPageProps> = ({
   };
 
   React.useEffect(() => {
+    if (!configLoaded) {
+      return;
+    }
+
     runQuery();
-  }, [timeRange, isHistogramVisible, direction]);
+  }, [timeRange, isHistogramVisible, direction, configLoaded]);
 
   const isQueryEmpty = query === '';
 
@@ -198,7 +207,15 @@ const LogsDetailPage: React.FC<LogsDetailPageProps> = ({
               value={timeRange}
               onChange={setTimeRangeInURL}
               isDisabled={isQueryEmpty}
+              timezone={timezone}
             />
+            {config.showTimezoneSelector && (
+              <TimezoneDropdown
+                value={timezone}
+                onChange={setTimezoneInURL}
+                isDisabled={isQueryEmpty}
+              />
+            )}
             <RefreshIntervalDropdown onRefresh={runQuery} isDisabled={isQueryEmpty} />
             <Tooltip content={<div>Refresh</div>}>
               <Button
@@ -221,6 +238,7 @@ const LogsDetailPage: React.FC<LogsDetailPageProps> = ({
             isLoading={isLoadingHistogramData}
             error={histogramError}
             onChangeTimeRange={setTimeRangeInURL}
+            timezone={timezone}
           />
         )}
 
@@ -257,6 +275,7 @@ const LogsDetailPage: React.FC<LogsDetailPageProps> = ({
                 isLoading={isLoadingVolumeData}
                 error={volumeError}
                 height={350}
+                timezone={timezone}
                 displayLegendTable
               />
             </CardBody>
@@ -270,6 +289,7 @@ const LogsDetailPage: React.FC<LogsDetailPageProps> = ({
                 isLoading={isLoadingLogsData}
                 error={logsError}
                 height={350}
+                timezone={timezone}
                 displayLegendTable
               />
             </CardBody>
@@ -287,6 +307,7 @@ const LogsDetailPage: React.FC<LogsDetailPageProps> = ({
             showStats={areStatsShown}
             direction={direction}
             error={logsError}
+            timezone={timezone}
           />
         )}
       </Grid>
