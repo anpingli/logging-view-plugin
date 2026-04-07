@@ -1,38 +1,48 @@
-import '@cypress/grep';
-
+import * as registerCypressGrep from '@cypress/grep';
 import './commands/selector-commands';
 import './commands/auth-commands';
 import './commands/utility-commands';
 import './commands/log-commands';
 
-export const checkErrors = () =>
-  cy.window().then((win) => {
-    assert.isTrue(!win.windowError, win.windowError);
-  });
+(registerCypressGrep as any)();
 
-  // Ignore benign ResizeObserver errors globally so they don't fail tests
-// See: https://docs.cypress.io/api/cypress-api/catalog-of-events#Uncaught-Exceptions
+/**
+ * Utility to check for custom window errors
+ */
+export const checkErrors = () => {
+  cy.window().then((win) => {
+    // Using a more descriptive assertion
+    assert.isTrue(!win.windowError, `Found window error: ${win.windowError}`);
+  });
+};
+
+/**
+ * Global Exception Handling
+ */
 Cypress.on('uncaught:exception', (err) => {
   const message = err?.message || String(err || '');
-  if (
-    message.includes('ResizeObserver loop limit exceeded') ||
-    message.includes('ResizeObserver loop completed with undelivered notifications') ||
-    message.includes('ResizeObserver') ||
-    message.includes('Cannot read properties of undefined') ||
-    message.includes('Unauthorized') ||
-    message.includes('Bad Gateway') ||
-    message.includes(`Cannot read properties of null (reading 'default')`) ||
-    message.includes(`(intermediate value) is not a function`)
-  ) {
-    console.warn('Ignored frontend exception:', err.message);
-    return false;
+
+  // 1. Define list of benign errors to ignore
+  const ignoredErrors = [
+    'ResizeObserver loop limit exceeded',
+    'ResizeObserver loop completed with undelivered notifications',
+    'ResizeObserver',
+    'Cannot read properties of undefined',
+    'Unauthorized',
+    'Bad Gateway',
+    "Cannot read properties of null (reading 'default')",
+    '(intermediate value) is not a function'
+  ];
+
+  // 2. Check if the current error matches any in our ignore list
+  const isIgnored = ignoredErrors.some(msg => message.includes(msg));
+
+  if (isIgnored) {
+    console.warn('Ignored frontend exception:', message);
+    return false; // Prevents Cypress from failing the test
   }
-  // allow other errors to fail the test
-});
 
-
-
-Cypress.on('uncaught:exception', (err) => {
-  console.error("Uncaught error:", err.message);
-  return false;
+  // 3. Log and FAIL for any other unexpected errors
+  console.error("Uncaught error (Failing test):", message);
+  return true; // This allows Cypress to fail the test as it should
 });

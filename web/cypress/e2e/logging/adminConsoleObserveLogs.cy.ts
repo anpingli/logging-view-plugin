@@ -1,87 +1,8 @@
 import { TestIds } from '../../../src/test-ids';
-import { aggrLogTest, observeLogTest, commonTest, getRunningPodName } from './testUtils.cy.ts';
-import { APP_NAMESPACE1,APP_NAMESPACE2,APP_MESSAGE } from './testUtils.cy.ts';
+import { testData } from '../../fixtures/data-test';
+import { coreObsLogsTests } from './testUtils.cy';
 
-
-function admConsoleUserObsTest() {
-  it('user can not display audit logs',{tags:['@observ']}, () => {
-    cy.byTestID(TestIds.TenantToggle)
-      .click()
-      .get('#logging-view-tenant-dropdown')
-      .contains('button', 'audit')
-      .click()
-    cy.byTestID(TestIds.LogsTable)
-      .should('exist')
-      .within(() => {
-        cy.get('div.lv-plugin__table__row-error', { timeout: 600  }).should('contain', 'Forbidden');
-      })
-  });
-}
-
-function admConsoleObserveTest(){
-  it('validate elements in core observeLogs',{tags:['@observ']}, () => {
-    const commonElements = [
-      TestIds.ToggleHistogramButton,
-      TestIds.TimeRangeDropdown,
-      TestIds.RefreshIntervalDropdown,
-      TestIds.SyncButton,
-      TestIds.AvailableAttributes,
-      TestIds.SeverityDropdown,
-      TestIds.ShowStatsToggle,
-      TestIds.ExecuteVolumeButton,
-      TestIds.ExecuteQueryButton,
-      TestIds.ShowQueryToggle,
-      TestIds.LogsTable,
-    ];
-    commonElements.forEach(id => {
-      cy.byTestID(id).should('exist');
-    });
-
-    cy.byTestID(TestIds.TenantToggle).should('exist');
-    cy.byTestID(TestIds.AttributeFilters).within(() => {
-      cy.byTestID(TestIds.AvailableAttributes).click();
-      cy.contains('li', 'Content');
-      cy.contains('li', 'Pod');
-      cy.contains('li', 'Containers');
-      cy.contains('li', 'Namespaces');
-    })
-    if (Cypress.env('CLUSTERLOGGING_DATAMODE') === "select" ) {
-      cy.byTestID(TestIds.SchemaToggle).should('exist');
-    }
-  })
-
-  it('selected containers',{tags:['@observ']}, () => {
-    getRunningPodName(APP_NAMESPACE1).as('pod1Name');
-    getRunningPodName(APP_NAMESPACE2).as('pod2Name');
-
-    cy.get('@pod1Name').then((pod1Name) => {
-      cy.get('@pod2Name').then((pod2Name) => {
-        const containers = [`${pod1Name} / centos-logtest`,`${pod2Name} / centos-logtest`]
-        cy.log(`container1=${pod1Name} / centos-logtest, container2=${pod2Name} / centos-logtest`);
-        cy.checkLogContainers(containers)
-
-        cy.showLogQueryInput();
-        let pattern = /{ kubernetes_container_name="centos-logtest", kubernetes_pod_name=~"centos-logtest-\w+|centos-logtest-\w+" } | json/;
-        if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
-          pattern = /{ k8s_container_name="centos-logtest", k8s_pod_name=~"centos-logtest-\w+|centos-logtest-\w+" } /;
-        }
-        cy.byTestID(TestIds.LogsQueryInput)
-          .find('textarea')
-          .invoke('val')
-          .should('match', pattern);
-        cy.byTestID(TestIds.ExecuteQueryButton).click();
-        const indexFields : IndexField = [
-          { name: 'k8s_namespace_name', value: `${APP_NAMESPACE1}|${APP_NAMESPACE2}` },
-          { name: 'k8s_pod_name', value: `${pod1Name}|${pod2Name}` },
-          { name: 'k8s_container_name', value: 'centos-logtest' },
-        ]
-        cy.assertFieldsInLogDetail(indexFields)
-      });
-    });
-  })
-}
-
-describe('AdminConsole:: Admin in ObserveLogs', { tags: ['@admin'] }, () => {
+describe('AdminConsole: Admin in ObserveLogs', { tags: ['@admin'] }, () => {
   before( function() {
     cy.uiLoginAsClusterAdminForUser("first");
     cy.switchToAdmConsole();
@@ -96,77 +17,79 @@ describe('AdminConsole:: Admin in ObserveLogs', { tags: ['@admin'] }, () => {
   after( function() {
     cy.uiLogoutClusterAdminForUser("first");
   });
-  admConsoleObserveTest();
-  observeLogTest();
-  commonTest();
-  it('admin can display infra logs',{tags:['@observ']}, () => {
-    cy.selectLogTenant('infrastructure')
-    let query = '{ log_type="infrastructure" } | json'
-    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
-      query = '{ log_type="infrastructure" }'
-    }
-    cy.showLogQueryInput();
-    cy.byTestID(TestIds.LogsQueryInput)
-      .find('textarea')
-      .invoke('val')
-      .should('eq', query)
-    cy.assertInfraLogsInLogsTable();
+
+  it('validate elements in core Observe Logs',{tags:['@observ','@level0','@logui-0001']}, () => {
+    coreObsLogsTests.validateElements()
   });
 
-  it('admin can display infra container logs',{tags:['@observ']}, () => {
-    cy.selectLogTenant('infrastructure')
-    cy.runLogQuery('{{}log_type="infrastructure"{}}|json|log_source="container"');
-
-    const indexFields : IndexField = [
-      { name: '_timestamp', value: "" },
-      { name: 'k8s_container_name', value: "" },
-      { name: 'k8s_namespace_name', value: "" },
-      { name: 'k8s_node_name', value: "" },
-      { name: 'k8s_pod_name', value: "" },
-      { name: 'openshift_log_type', value: "infrastructure" },
-      { name: 'log_source', value: "container" },
-      { name: 'hostname', value: "" },
-      { name: 'openshift_cluster_id', value: "" },
-      { name: 'openshift_sequence', value: "" },
-    ];
-    cy.assertFieldsInLogDetail(indexFields)
+  it('selected namespaces',{tags:['@observ','level0','@logui-0002']}, () => {
+    coreObsLogsTests.selectNamespaces();
   });
 
-  it('admin can display infra node logs',{tags:['@smoke','@observ']}, () => {
-    cy.selectLogTenant('infrastructure')
-    cy.runLogQuery('{{}log_type="infrastructure"{}}|json|log_source="node"')
-    const indexFields : IndexField = [
-      { name: '_timestamp', value: "" },
-      { name: 'log_type', value: "infrastructure" },
-      { name: 'openshift_log_type', value: "infrastructure" },
-      { name: 'log_source', value: "node" },
-      { name: 'hostname', value: "" },
-      { name: 'openshift_cluster_id', value: "" },
-      { name: 'openshift_sequence', value: "" },
-    ];
-    cy.assertFieldsInLogDetail(indexFields);
+  it('selected containers',{tags:['@observ','level0','@logui-0003']}, () => {
+    coreObsLogsTests.selectContainers()
   });
 
-  it('admin can display audit logs',{tags:['@observ']}, () => {
-    cy.selectLogTenant('audit')
-    let query = '{ log_type="audit" } | json'
-    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
-      query = '{ log_type="audit" }'
-    }
-    cy.showLogQueryInput();
-    cy.byTestID(TestIds.LogsQueryInput)
-      .find('textarea')
-      .invoke('val')
-      .should('eq', query)
-    cy.assertAuditLogsInLogsTable();
+  it('display applicatioins logs',{tags:['@common','@level0','@logui-0004']}, () => {
+    cy.selectLogTenant('application')
+    cy.assertAppLogsInLogsTable();
   });
-})
+
+  it('select both running and deleted pods',{tags:['@observ','@logui-0005']}, () => {
+    coreObsLogsTests.selectPods();
+  });
+
+  it('Search by content ',{tags:['@common','@level0','@logui-0006']}, () => {
+    coreObsLogsTests.searchContent();
+  });
+
+  it('Show Resources',{tags:['@common','level0','@logui-0007']}, () => {
+    coreObsLogsTests.showResources();
+  });
+
+  it('filter logs by last duration ',{tags:['@common','level0','@log-0008']}, () => {
+    coreObsLogsTests.filterByTimeDuration();
+  });
+  
+  it('filter logs by custom range',{tags:['@common','level0','@logui-0009']}, () => {
+    coreObsLogsTests.filterByTimeRange();
+  });
+
+  it('switch the dataFormat',{tags:['@common','@logui-0010']},function() {
+    coreObsLogsTests.switchDataSchema(this);
+  });
+  
+  it('validate log format for application container',{tags:['@common','@logui-0011']}, () => {
+    coreObsLogsTests.validateAppContainerLogFields();
+  });
+
+  it('display infra logs',{tags:['@observ','@level0','@logui-0012']}, () => {
+     coreObsLogsTests.selectInfraLog();
+  });
+
+  it('admin validate log format for infra container logs',{tags:['@observ','@logui-0013']}, () => {
+     coreObsLogsTests.validateInfraContainerLogFields();
+  });
+
+  it('admin validate log format for infra node logs',{tags:['@observ','@logui-0013']}, () => {
+     coreObsLogsTests.validateInfraNodeLogFields();
+  });
+
+  it('admin validate the log format for kubeAPIand Openshift API',{tags:['@observ','@logui-0014']}, () => {
+     coreObsLogsTests.validateKubeAPILogFields();
+
+  });
+
+  it('admin validate the log format for auditd',{tags:['@observ','@logui-0015']}, () => {
+     coreObsLogsTests.validateLinuxLogFields();
+  });
+});
 
 describe.skip('AdminConsole: Impersonate User in ObserveLogs', { tags: ['@admin'] }, () => {
   before( function() {
     cy.cliLoginAsUser("second");
-    cy.grantLogViewRolesToUser("second", `${APP_NAMESPACE1}`);
-    cy.grantLogViewRolesToUser("second", `${APP_NAMESPACE2}`);
+    cy.grantLogViewRolesToUser("second", testData.appNamespace1);
+    cy.grantLogViewRolesToUser("second", testData.appNamespace2);
     cy.uiLoginAsClusterAdminForUser("first");
     cy.switchToAdmConsole();
     cy.uiImpersonateUser("second");
@@ -181,20 +104,46 @@ describe.skip('AdminConsole: Impersonate User in ObserveLogs', { tags: ['@admin'
 
   after( function() {
     cy.uiLogoutUser("second");
-    cy.removeLogViewRolesFromUser("second", `${APP_NAMESPACE1}`);
-    cy.removeLogViewRolesFromUser("second", `${APP_NAMESPACE2}`);
+    cy.removeLogViewRolesFromUser("second", testData.appNamespace1);
+    cy.removeLogViewRolesFromUser("second", testData.appNamespace2);
   });
   
-  admConsoleObserveTest();
-  admConsoleUserObsTest();
-  observeLogTest();
-  commonTest();
+  it('display Logs are forbidedn by default',{tags:['@common','@level0','@logui-0018']}, () => {
+    cy.selectLogTenant('application')
+    cy.assertAppLogsInLogsTable();
+  });
+
+
+  it('display Logs are forbidedn by default',{tags:['@common','@level0','@logui-0018']}, () => {
+    cy.selectLogTenant('application')
+    cy.assertAppLogsInLogsTable();
+  });
+
+
+  it('user can not display audit logs',{tags:['@observ']}, () => {
+    cy.byTestID(TestIds.TenantToggle)
+      .click()
+      .get('#logging-view-tenant-dropdown')
+      .contains('button', 'audit')
+      .click()
+    cy.byTestID(TestIds.LogsTable)
+      .should('exist')
+      .within(() => {
+        cy.get('div.lv-plugin__table__row-error', { timeout: 600  })
+	  .should('contain', 'Forbidden');
+      });
+  });
+
+
+  it('selected namespaces',{tags:['@observ','@logui-0020']}, () => {
+    coreObsLogsTests.selectNamespaces();
+  });
 })
 
-describe.skip('AdminConsole: User in ObserveLogs', { tags: ['@user'] }, () => {
+describe('AdminConsole: User in ObserveLogs', { tags: ['@user'] }, () => {
   before( function() {
-    cy.grantLogViewRolesToUser("second", `${APP_NAMESPACE1}`)
-    cy.grantLogViewRolesToUser("second", `${APP_NAMESPACE2}`)
+    cy.grantLogViewRolesToUser("second", testData.appNamespace1)
+    cy.grantLogViewRolesToUser("second", testData.appNamespace2)
     cy.uiLoginAsUser("second");
     cy.switchToAdmConsole();
   });
@@ -207,12 +156,77 @@ describe.skip('AdminConsole: User in ObserveLogs', { tags: ['@user'] }, () => {
 
   after( function() {
     cy.uiLogoutUser("second");
-    cy.removeLogViewRolesFromUser("second", `${APP_NAMESPACE1}`);
-    cy.removeLogViewRolesFromUser("second", `${APP_NAMESPACE2}`);
+    cy.removeLogViewRolesFromUser("second", testData.appNamespace1);
+    cy.removeLogViewRolesFromUser("second", testData.appNamespace2);
   });
 
-  admConsoleObserveTest();
-  admConsoleUserObsTest();
-  observeLogTest();
-  commonTest();
-})
+  it('validate elements in core Observe Logs',{tags:['@observ','@level0','@logui-0028']}, () => {
+    coreObsLogsTests.validateElements();
+  });
+
+  it('display Logs are forbiden by default',{tags:['@common','@level0','@logui-0018']}, () => {
+    cy.get('.lv-plugin__table__row-error').then(($alert) => {
+        const fullText = $alert.text();
+        expect(fullText).to.include('Forbidden');
+        expect(fullText).to.include('Missing permissions to get logs');
+        expect(fullText).to.include('Try selecting a specific namespace');
+        expect(fullText).to.include('you may have access to view logs in specific namespaces but not cluster-wide.');
+        expect(fullText).to.include('If you still see this error after selecting a namespace, ask your administrator to grant you the required role:
+');
+        expect(fullText).to.include('apiVersion: rbac.authorization.k8s.io');
+        expect(fullText).to.include('kind: RoleBinding');
+        expect(fullText).to.include('name: view-application-logs');
+        expect(fullText).to.include('name: cluster-logging-application-view');
+        let query = '{ kubernetes_namespace_name = "<namespace>"}'
+        if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+            query = '{ k8s_namespace_name = "<namespace>"}'
+	}
+        expect(fullText).to.include(query);
+    });
+  });
+
+  it('selected namespaces',{tags:['@observ','@logui-0020']}, () => {
+    coreObsLogsTests.selectNamespaces();
+  });
+
+  it('display applicatioins logs',{tags:['@common','@level0','@logui-0030']}, () => {
+    cy.selectLogTenant('application');
+    const namespaces=[testData.appNamespace1]
+    cy.checkLogNamespaces(namespaces);
+    cy.assertAppLogsInLogsTable();
+  });
+
+  it('selected containers',{tags:['@observ','@level0','@logui-0029']}, () => {
+    const namespaces=[testData.appNamespace1]
+    cy.checkLogNamespaces(namespaces);
+    coreObsLogsTests.selectContainers();
+  });
+
+  it('Show Resources',{tags:['@common','@logui-0031']}, () => {
+    const namespaces=[testData.appNamespace1]
+    cy.checkLogNamespaces(namespaces);
+    coreObsLogsTests.showResources();
+  });
+
+  it('selected namespaces',{tags:['@observ','level0','@logui-0032']}, () => {
+    coreObsLogsTests.selectNamespaces();
+  });
+
+  it('Search by content ',{tags:['@common','@level0','@logui-0034']}, () => {
+    const namespaces=[testData.appNamespace1]
+    cy.checkLogNamespaces(namespaces);
+    coreObsLogsTests.searchContent();
+  });
+
+  it('filter logs by last duration ',{tags:['@common','@log-0035']}, () => {
+    const namespaces=[testData.appNamespace1]
+    cy.checkLogNamespaces(namespaces);
+    coreObsLogsTests.filterByTimeDuration();
+  });
+  
+  it('filter logs by custom range',{tags:['@common','@logui-0036']}, () => {
+    const namespaces=[testData.appNamespace1]
+    cy.checkLogNamespaces(namespaces);
+    coreObsLogsTests.filterByTimeRange();
+  });
+});

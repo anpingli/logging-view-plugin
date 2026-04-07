@@ -1,6 +1,5 @@
-import { TestIds } from '../../../src/test-ids';
-import { aggrLogTest, observeLogTest, commonTest } from './testUtils.cy.ts';
-import { APP_NAMESPACE1,APP_NAMESPACE2,APP_MESSAGE } from './testUtils.cy.ts';
+import { aggrLogsTests } from './testUtils.cy';
+import { testData } from '../../fixtures/data-test';
 
 describe('AdminConsole: Admin in AggregatedLogs', { tags: ['@admin'] }, () => {
   before( function() {
@@ -8,37 +7,58 @@ describe('AdminConsole: Admin in AggregatedLogs', { tags: ['@admin'] }, () => {
   });
 
   beforeEach( function() {
-    cy.showAdminConsolePodAggrLog(APP_NAMESPACE1);
-   });
+    cy.showAdminConsolePodAggrLog(testData.appNamespace1);
+  });
 
   after( function() {
     cy.uiLogoutClusterAdminForUser("first");
   });
 
-  aggrLogTest();
-  commonTest();
-  it('admin can display infra container logs',{tags:['@aggr']}, () => {
-    cy.showAdminConsolePodAggrLog('openshift-monitoring','alertmanager-main-0');
-    const indexFields : IndexField = [
-      { name: '_timestamp', value: "" },
-      { name: 'k8s_container_name', value: "" },
-      { name: 'k8s_namespace_name', value: "openshift-monitoring" },
-      { name: 'k8s_node_name', value: "" },
-      { name: 'k8s_pod_name', value: "alertmanager-main-0" },
-      { name: 'openshift_log_type', value: "infrastructure" },
-      { name: 'log_source', value: "container" },
-      { name: 'hostname', value: "" },
-      { name: 'openshift_cluster_id', value: "" },
-      { name: 'openshift_sequence', value: "" },
-    ];
-    cy.assertFieldsInLogDetail(indexFields)
+  it('validate elements in Aggregated Logs',{tags:['@aggr','@logui-1000']}, () => {
+    aggrLogsTests.validateElements();
   });
-})
+
+  it('display applicatioins logs',{tags:['@common','@logui-1001']}, () => {
+    cy.assertAppLogsInLogsTable();
+  });
+
+  it('select both running and deleted pods',{tags:['@aggr','@logui-1002']}, () => {
+    aggrLogsTests.selectPods();
+  });
+
+  it('selected containers',{tags:['@aggr','@logui-1003']}, () => {
+    aggrLogsTests.selectContainers();
+  });
+
+  it('Search by content',{tags:['@common','@logui-1004']}, () => {
+    aggrLogsTests.searchContent();
+  });
+
+  it('filter logs by last duration ',{tags:['@common','@log-1005']}, () => {
+    aggrLogsTests.filterByTimeDuration();
+  });
+
+  it('filter logs by custom range',{tags:['@common','@logui-1006']}, () => {
+    aggrLogsTests.filterByTimeRange();
+  });
+
+  it('Show Resources',{tags:['@common','@logui-1007']}, () => {
+    aggrLogsTests.showResources();
+  });
+
+  it('switch the dataFormat',{tags:['@common','@logui-1008']},function() {
+    aggrLogsTests.switchDataSchema(this);
+  });
+
+  it('admin can display infra container logs',{tags:['@aggr','@level0','@logui-1010']}, () => {
+    aggrLogsTests.validateInfraContainerLogFields()
+  });
+});
 
 describe('AdminConsole: Impersonate User in AggregatedLogs',{ tags: ['@admin'] }, () => {
   before( function() {
-    cy.grantLogViewRolesToUser("second", `${APP_NAMESPACE1}`);
-    cy.grantLogViewRolesToUser("second", `${APP_NAMESPACE2}`);
+    cy.grantLogViewRolesToUser("second", testData.appNamespace1);
+    cy.grantLogViewRolesToUser("second", testData.appNamespace2);
     cy.cliLoginAsUser("second")
     cy.uiLoginAsClusterAdminForUser("first");
     cy.uiImpersonateUser("second");
@@ -46,36 +66,75 @@ describe('AdminConsole: Impersonate User in AggregatedLogs',{ tags: ['@admin'] }
   });
 
   beforeEach( function() {
-    cy.showAdminConsolePodAggrLog(APP_NAMESPACE1);
+    cy.showAdminConsolePodAggrLog(testData.appNamespace1);
   });
 
   after( function() {
     cy.uiLogoutUser("second");
-    cy.removeLogViewRolesFromUser("second", `${APP_NAMESPACE1}`);
-    cy.removeLogViewRolesFromUser("second", `${APP_NAMESPACE2}`);
+    cy.removeLogViewRolesFromUser("second", testData.appNamespace1);
+    cy.removeLogViewRolesFromUser("second", testData.appNamespace2);
   });
 
-  aggrLogTest();
-  commonTest();
-})
+  it('display applicatioins logs',{tags:['@common','@level0','@logui-1011']}, () => {
+    cy.assertAppLogsInLogsTable();
+  });
+
+  it('select both running and deleted pods',{tags:['@aggr','@logui-1014']}, () => {
+    aggrLogsTests.selectPods();
+  });
+});
 
 describe('AdminConsole: User in Aggregated Logs', { tags: ['@user'] }, () => {
   before( function() {
-    cy.grantLogViewRolesToUser("second", `${APP_NAMESPACE1}`);
-    cy.grantLogViewRolesToUser("second", `${APP_NAMESPACE2}`);
+    cy.grantLogViewRolesToUser("second", testData.appNamespace1);
+    cy.grantLogViewRolesToUser("second", testData.appNamespace2);
     cy.uiLoginAsUser("second");
   });
 
   beforeEach( function() {
-    cy.showAdminConsolePodAggrLog(APP_NAMESPACE1);
+    cy.showAdminConsolePodAggrLog(testData.appNamespace1);
   });
 
   after( function() {
     cy.uiLogoutUser("second");
-    cy.removeLogViewRolesFromUser("second", `${APP_NAMESPACE1}`);
-    cy.removeLogViewRolesFromUser("second", `${APP_NAMESPACE2}`);
+    cy.removeLogViewRolesFromUser("second", testData.appNamespace1);
+    cy.removeLogViewRolesFromUser("second", testData.appNamespace2);
   });
 
-  aggrLogTest();
-  commonTest();
-})
+  it('validate elements in Aggregated Logs',{tags:['@aggr','@level0','@logui-1022']}, () => {
+    aggrLogsTests.validateElements();
+  });
+
+  it('display applicatioins logs',{tags:['@common','@level0','@logui-1021']}, () => {
+    cy.assertAppLogsInLogsTable();
+  });
+
+  it('Show Resources',{tags:['@common','@level0','@logui-1023']}, () => {
+    aggrLogsTests.showResources();
+  });
+
+  it('select both running and deleted pods',{tags:['@aggr', '@level0', '@logui-1024']}, () => {
+    aggrLogsTests.selectPods();
+  });
+
+  it('selected containers',{tags:['@aggr','@level0','@logui-1025']}, () => {
+    aggrLogsTests.selectContainers();
+  });
+
+  it('Search by content ',{tags:['@common','@level0','@logui-1026']}, () => {
+    aggrLogsTests.searchContent();
+  });
+
+  it('filter logs by last duration ',{tags:['@common','level0','@log-1027']}, () => {
+    aggrLogsTests.filterByTimeDuration();
+  });
+  
+  it('filter logs by custom range',{tags:['@common','level0','@logui-1028']}, () => {
+    aggrLogsTests.filterByTimeRange();
+  });
+
+  it('validate app container logs fileds',{tags:['@aggr','@level0','@logui-1010']}, () => {
+    aggrLogsTests.validateAppContainerLogFields();
+  });
+
+});

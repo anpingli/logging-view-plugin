@@ -169,6 +169,7 @@ export const LegacyTestIDs = {
   SelectAllSilencesCheckbox: 'select-all-silences-checkbox',
   PersesDashboardSection: 'dashboard',
   NamespaceBarDropdown: 'namespace-bar-dropdown',
+  TimezoneSelect: 'timezone-typeahead-select-input',
 };
 
 export const IDs = {
@@ -228,5 +229,31 @@ export const persesDataTestIDs = {
   variableDropdown: 'variable',
   panelGroupHeader: 'panel-group-header',
   panelHeader: 'panel',
+};
+
+export const testData = {
+  appNamespace1: "log-test-app1",
+  appNamespace2: "log-test-app2",
+  appContainerName: "centos-logtest",
+  appMessageKey: "SVTLogger",
+  appMessageRegex: /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} - SVTLogger - INFO - .*$/, 
+  dnsRegex: /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/,
+  uuidRegex: /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/,
+  isoTimestampRegex: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$/,
+  hostnameRegex: /[a-zA-Z0-9][-a-zA-Z0-9.]+[a-zA-Z0-9]/,
+};
+
+export const admin_kubeconfig = Cypress.env('KUBECONFIG_PATH');
+
+export const normal_kubeconfig = "/tmp/logging_ui_kubeconfig";
+
+export const Rank = {
+  toIndex: {
+    first: 0,
+    second: 1,
+    third: 2,
+    fourth: 3,
+    fifth: 4,
+  }
 };
 

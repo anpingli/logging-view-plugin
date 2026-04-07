@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 set +x
 # Author: anli@redhat.com
-# Description: Run Logging UI test using the given users. 
-#   prerequisite: 
-#      clusterlogging are deployed, appplication, infrastructure and audit logs are sent to lokistack.
-#      The pod produce logs in namespaces log-test-app1,log-test-app2 unceasingly.
-#      (Note: In prow, the step openshift-observability-enable-cluster-logging can prepare test data)
-#      The test need at least two users in the given IDP.
-#        The function enable_idp_htpasswd can create htpasswd IPD with five users 
-#        You can also provide IDP using Environment CYPRESS_LOGIN_IDP,CYPRESS_LOGIN_USERS. 
-#      The Environment KUBECONFIG must be exported.
-#      The CYPRESS_SPEC can be used to specify spec. The default value is cypress/e2e/logging/*.ts
-#      The CYPRESS_TAG can be used to filter cases by tag
+#
+# Description: 
+# Run Logging UI test using the given users. test cases can be executed using Environment  CYPRESS_SPEC or CYPRESS_TAG
+#
+# Prerequisite: 
+# The Environment KUBECONFIG must be exported.
+# clusterlogging are deployed
+# coo is deployed and loggingUI plugin are enabled
+# appplication, infrastructure and audit logs are sent to lokistack constantly
+# pod logs in namespaces log-test-app1,log-test-app2 are sent to lokisack constantly
+# (Note: In prow, step openshift-observability-enable-cluster-logging can prepare test data)
+# An avaiable IDP and at least two users. you can set IDP using Environments CYPRESS_LOGIN_IDP,CYPRESS_LOGIN_USERS. the func enable_idp_htpasswd will create IDP if absent 
+# (Note: In prow, step openshift-observability-enable-cluster-logging can prepare test data)
+#
 #
 
 ## Add htpasswd IDP and Users
@@ -116,7 +119,28 @@ function check_clusterlogging(){
         echo "No lokistack can be found in openshift-logging namespace"
         exit 1
     fi
-    echo "Warnig, lokistack ${lokistack_name} is selected, please confirm if that is the one you are using in openshift-logging"
+
+    echo "Check if the dataMode is correct"
+    if [[ "$data_mode" == "otel" ]]; then
+	log_minor_version=${CYPRESS_CLUSTERLOGGING_VERSION#*.}
+	#Check the enableConsoleLabels in Logging 6.5+
+	if [[ "log_minor_version" -ge 5 ]];then
+            otlp_labels=$(oc -n openshift-logging get lokistack "${lokistack_name}" -o jsonpath='{.spec.tenants.openshift.otlp.enableConsoleLabels}' 2>/dev/null)
+	    otlp_labels=$(echo "$otlp_labels" | tr -d '[:space:]')
+            if [[ "$otlp_labels" != "true" ]]; then
+                echo "Error: tenants.openshift.otlp.enableConsoleLabels in lokistack must be true when schema is otel logging uiplugin"
+                exit 1
+            fi
+	fi	
+	clf_labels=$(oc -n openshift-logging get obsclf -o jsonpath='{.items[].spec.outputs[].lokiStack.dataModel}' 2>/dev/null)
+	clf_labels=$(echo "$clf_labels" | tr -d '[:space:]')
+	if [[ "$clf_labels" != *"Otel"* ]]; then
+            echo "Error: the dataMode must be Otel in obsclf, it is ${clf_labels} now"
+            exit 1
+	fi
+    fi
+
+    echo "Warning, lokistack ${lokistack_name} is selected, please confirm if that is the one you are using in openshift-logging"
     oc -n openshift-logging wait pod --for=condition=ready -l  app.kubernetes.io/instance=${lokistack_name} || exit 1
     oc -n openshift-logging wait pod --for=condition=ready -l  app.kubernetes.io/component=collector || exit 1
 
@@ -176,22 +200,30 @@ fi
 
 export CYPRESS_BASE_URL="https://$(oc get route console -n openshift-console  -o jsonpath={.spec.host})"
 export CYPRESS_OPENSHIFT_VERSION=$(oc version -o json  |jq -r '.openshiftVersion'|cut -f 1,2 -d.)
-clusterlogging_csv=$(oc -n openshift-logging get csv -l "operators.coreos.com/cluster-logging.openshift-logging" -o jsonpath='{.items[0].metadata.name}')
-if [[ $clusterlogging_csv == "" ]];then
-    echo "can not find the cluster-logging csv"
+
+csv_name=$(oc -n openshift-logging get csv -l "operators.coreos.com/cluster-logging.openshift-logging" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+if [[ -z "$csv_name" ]]; then
+    echo "Error: Could not find the cluster-logging CSV."
     exit 1
 fi
-clusterlogging_csv_version=${clusterlogging_csv#cluster-logging.v}
-export CYPRESS_CLUSTERLOGGING_VERSION=$(echo $clusterlogging_csv_version|cut -d. -f1,2)
+full_version=$(oc -n openshift-logging get csv "$csv_name" -o jsonpath='{.spec.version}')
+export CYPRESS_CLUSTERLOGGING_VERSION=$(echo "$full_version" | cut -d. -f1,2)
 
-coo_csv=$(oc get csv -l olm.copiedFrom"="openshift-cluster-observability-operator -o jsonpath='{.items[0].metadata.name}')
-export CYPRESS_COO_VERSION=${coo_csv//cluster-observability-operator.v}
+csv_name=$(oc get csv -l olm.copiedFrom"="openshift-cluster-observability-operator -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+full_version=$(oc get csv "$csv_name" -o jsonpath='{.spec.version}')
+export CYPRESS_COO_VERSION=$(echo "$full_version" | cut -d. -f1,2)
 
 data_mode=$(oc get uiplugin logging -o jsonpath='{.spec.logging.schema}')
 if [[ "$data_mode" == "" ]];then
     data_mode="viaq"
 fi
 export CYPRESS_CLUSTERLOGGING_DATAMODE=${data_mode}
+
+timezone=$(oc get uiplugin logging -o jsonpath='{.spec.logging.showTimezoneSelector}')
+if [[ "$timezone" == "" ]];then
+    timezone="false"
+fi
+export CYPRESS_LOGGING_UI_TIMEZONE=${timezone}
 
 check_clusterlogging
 
@@ -205,13 +237,15 @@ if [[ $CYPRESS_LOGIN_USERS == "" ]];then
    exit 1
 fi
 
+echo "## Environment"
 echo "export KUBECONFIG=${KUBECONFIG}"
 echo "export CYPRESS_BASE_URL=$CYPRESS_BASE_URL"
 echo "export CYPRESS_LOGIN_IDP=$CYPRESS_LOGIN_IDP"
-echo "export CYPRESS_LOGIN_USERS=$CYPRESS_LOGIN_USERS"
+echo "export CYPRESS_LOGIN_USERS=xxxxxxxx"
 echo "export CYPRESS_OPENSHIFT_VERSION=$CYPRESS_OPENSHIFT_VERSION"
 echo "export CYPRESS_CLUSTERLOGGING_VERSION=$CYPRESS_CLUSTERLOGGING_VERSION"
 echo "export CYPRESS_CLUSTERLOGGING_DATAMODE=$CYPRESS_CLUSTERLOGGING_DATAMODE"
+echo "export CYPRESS_LOGGING_UI_TIMEZONE=$CYPRESS_LOGGING_UI_TIMEZONE"
 echo "export CYPRESS_COO_VERSION=${CYPRESS_COO_VERSION}"
 
 echo "## Execute Cypress cases"
@@ -220,12 +254,14 @@ cd $script_dir/../
 
 cypress_args=""
 if [[ "$CYPRESS_SPEC" == "" ]];then
-    cypress_args=" --spec $(ls cypress/e2e/logging/*.ts|paste -sd ',' -)"
-else
-    cypress_args=" --spec ${CYPRESS_SPEC}"
+    CYPRESS_SPEC="$(ls cypress/e2e/logging/*.ts|paste -sd ',' -)"
 fi
+
 if [[ "$CYPRESS_TAG" != "" ]]; then
-    cypress_args="$cypress_args --env grep=${CYPRESS_TAG// /}"
+    set -x
+    npx cypress run --e2e --spec "${CYPRESS_SPEC}" --env '{"grepTags":"'${CYPRESS_TAG// /}'","grepFilterSpecs":true}'
+else
+    set -x
+    npx cypress run --e2e --spec "${CYPRESS_SPEC}"
 fi
-echo "npx cypress run --e2e ${cypress_args}"
-npx cypress run --e2e ${cypress_args}
+set +x

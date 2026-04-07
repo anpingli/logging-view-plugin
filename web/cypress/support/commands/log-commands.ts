@@ -3,15 +3,14 @@
 import 'cypress-wait-until';
 import { guidedTour } from '../../views/tour';
 import { TestIds } from '../../../src/test-ids';
-import { Classes } from '../../fixtures/data-test';
+import { Classes, admin_kubeconfig, normal_kubeconfig, Rank } from '../../fixtures/data-test';
 import * as helperfuncs from '../views/utils';
-import * as Env from './env';
 
 declare global {
   namespace Cypress {
     interface IndexField {
       name: string;
-      value?: string; 
+      value?: string | RegExp;
     }
     interface Chainable<Subject> {
       grantLogViewRolesToUser(index: string, project: string);
@@ -36,8 +35,6 @@ declare global {
   }
 }
 
-Cypress.Commands.add('getByTestId', (testId: TestIds) => cy.get(`[data-test="${testId}"]`));
-
 Cypress.Commands.add("getLogToolbar", () => {
   cy.byClass(Classes.LogToolbar);
 })
@@ -60,7 +57,7 @@ Cypress.Commands.add("closeLogQueryInput", () => {
 
 Cypress.Commands.add("runLogQuery", (logQL: string) => {
   cy.showLogQueryInput();
-  cy.getByTestId(TestIds.LogsQueryInput)
+  cy.byTestID(TestIds.LogsQueryInput)
     .find('textarea')
     .type(`{selectall}${logQL}`, { delay: 0 })
     .then(() => {
@@ -72,7 +69,7 @@ Cypress.Commands.add("runLogQuery", (logQL: string) => {
 Cypress.Commands.add('grantLogViewRolesToUser', (index: string, project: string) => {
   let username="";
   if (Cypress.env('LOGIN_USERS')){
-    username=Cypress.env('LOGIN_USERS').split(',')[Env.Rank.toIndex[index]].split(':')[0];
+    username=Cypress.env('LOGIN_USERS').split(',')[Rank.toIndex[index]].split(':')[0];
     if( username != "" ){
       cy.exec(`oc -n ${project} policy add-role-to-user view ${username}`);
       cy.exec(`oc -n ${project} policy add-role-to-user cluster-logging-application-view ${username}`);
@@ -89,7 +86,7 @@ Cypress.Commands.add('grantLogViewRolesToUser', (index: string, project: string)
 Cypress.Commands.add('removeLogViewRolesFromUser', (index: string, project: string) => {
   let username="";
   if (Cypress.env('LOGIN_USERS')){
-    username=Cypress.env('LOGIN_USERS').split(',')[Env.Rank.toIndex[index]].split(':')[0];
+    username=Cypress.env('LOGIN_USERS').split(',')[Rank.toIndex[index]].split(':')[0];
     if( username != "" ){
       cy.exec(`oc -n ${project} policy remove-role-from-user view ${username}`, { failOnNonZeroExit: false });
       cy.exec(`oc -n ${project} policy remove-role-from-user cluster-logging-application-view ${username}`, { failOnNonZeroExit: false });
@@ -104,7 +101,7 @@ Cypress.Commands.add('removeLogViewRolesFromUser', (index: string, project: stri
 
 Cypress.Commands.add('assertLogsInLogsTable', () => {
   // Ensure the table has loaded rows
-  cy.getByTestId(TestIds.LogsTable).within(() => {
+  cy.byTestID(TestIds.LogsTable).within(() => {
     cy.get('tr[data-test-rows="resource-row" ]').first().within(() => {
       cy.get('td[data-label="date"]').should('exist');
       cy.get('td[data-label="message"]').should('exist');
@@ -120,7 +117,7 @@ Cypress.Commands.add('assertLogsInLogsTable', () => {
 //the filed value can be value, empty or pattern
 Cypress.Commands.add('assertFieldsInLogDetail', (indexFields: IndexField[]) => {
   
-  cy.getByTestId(TestIds.LogsTable).within(() => {
+  cy.byTestID(TestIds.LogsTable,{ timeout: 20000 }).within(() => {
     //there are more than one row in tables
     cy.get('tr[data-test-rows="resource-row"]')
       .its('length')
@@ -139,7 +136,7 @@ Cypress.Commands.add('assertFieldsInLogDetail', (indexFields: IndexField[]) => {
       })
 
     // check the fields in detail
-    cy.byClass(Classes.LogDetail)
+    cy.byClass(Classes.LogDetail,{ timeout: 20000 })
       .within(() => {
         indexFields.forEach(field => {
           if (!Cypress._.isEmpty(field.value)) { // skip if value is empty, null, or undefined
@@ -268,7 +265,7 @@ Cypress.Commands.add('showAdminConsolePodAggrLog', (projectName: string , podNam
     cy.clickPodLink(name);
   }
   cy.byLegacyTestID('horizontal-link-Aggregated Logs').click();
-  cy.getByTestId(TestIds.LogsTable, { timeout: 300000 }).should('exist')
+  cy.byTestID(TestIds.LogsTable, { timeout: 300000 }).should('exist')
 })
 
 //Show the devConsole pod logs in one project
@@ -288,7 +285,7 @@ Cypress.Commands.add('showDevConsolePodAggrLog', (projectName: string , podName?
     cy.clickPodLink(name);
   }
   cy.byLegacyTestID('horizontal-link-Aggregated Logs').click();
-  cy.getByTestId(TestIds.LogsTable, { timeout: 300000 }).should('exist')
+  cy.byTestID(TestIds.LogsTable, { timeout: 300000 }).should('exist')
 })
 
 //ensure the logs in lokistack before use it in UI

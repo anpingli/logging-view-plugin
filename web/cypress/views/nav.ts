@@ -1,17 +1,32 @@
-import { Classes } from '../fixtures/data-test';
+import { Classes } from '../fixtures/data-test'
 export const nav = {
   sidenav: {
     clickNavLink: (path: string[]) => {
       cy.log('Click navLink - ' + `${path}`);
       cy.clickNavLink(path);
+      cy.wait(2000);
     },
     switcher: {
-      changePerspectiveTo: (perspective: string) => {
-      cy.log('Switch perspective - ' + `${perspective}`);
-      cy.byLegacyTestID('perspective-switcher-toggle').scrollIntoView().should('be.visible');
-      cy.byLegacyTestID('perspective-switcher-toggle').scrollIntoView().should('be.visible').click({force: true});
-      cy.byLegacyTestID('perspective-switcher-menu-option').contains(perspective).should('be.visible');
-      cy.byLegacyTestID('perspective-switcher-menu-option').contains(perspective).should('be.visible').click({force: true});
+      changePerspectiveTo: (...perspectives: string[]) => {
+        cy.get('body').then((body) => {
+          if (body.find('button[data-test-id="perspective-switcher-toggle"]:visible').length > 0) {
+            cy.byLegacyTestID('perspective-switcher-toggle').scrollIntoView().click({ force: true });
+
+            cy.get('[data-test-id="perspective-switcher-menu-option"]').then(($options) => {
+              const foundPerspective = perspectives.find(p => $options.text().includes(p));
+              if (foundPerspective) {
+                cy.byLegacyTestID('perspective-switcher-menu-option')
+                  .contains(foundPerspective)
+                  .click({ force: true });
+              } else {
+                cy.log('No matching perspective found');
+                cy.get('body').type('{esc}');
+              }
+            });
+
+          }
+        });
+        cy.wait(2000);
       },
       shouldHaveText: (perspective: string) => {
         cy.log('Should have text - ' + `${perspective}`);
@@ -25,7 +40,8 @@ export const nav = {
      * @param tabname - The name of the tab to switch to
      */
     switchTab: (tabname: string) => {
-      cy.get(Classes.HorizontalNav).contains(tabname).should('be.visible').click();
+      cy.get(Classes.HorizontalNav).contains(tabname).should('be.visible').click({force: true});
+      cy.wait(2000);
   }
 }
 };

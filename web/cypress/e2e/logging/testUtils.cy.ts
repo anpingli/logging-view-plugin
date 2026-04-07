@@ -1,9 +1,7 @@
 //Common logging UI Cases
-//Note: the default namespace is APP_NAMESPACE1 for all test in this file
+//Note: the default namespace is testData.appNamespace1 for all test in this file
 import { TestIds } from '../../../src/test-ids';
-export const APP_NAMESPACE1 = "log-test-app1";
-export const APP_NAMESPACE2 = "log-test-app2";
-export const APP_MESSAGE = "SVTLogger";
+import { testData } from '../../fixtures/data-test';
 
 export function isDevConsoleReady(): boolean {
   //Check if DevConsole is enabled in 4.19+
@@ -17,7 +15,7 @@ export function isDevConsoleReady(): boolean {
     return cy.exec("oc get console.operator cluster -o jsonpath='{.spec.customization.perspectives}'", { failOnNonZeroExit: false })
       .then((result) => {
         const devReady = result.stdout === '[{"id":"dev","visibility":{"state":"Enabled"}}]';
-        return devReady; 
+        return devReady;
       });
   }
   return cy.wrap(true);
@@ -32,174 +30,44 @@ export function getRunningPodName(namespace: string, labelSelector?: string) {
   return cy.exec(cmd).then((res) => res.stdout.trim())
 }
 
-export function aggrLogTest() {
-  it('validate elements in Aggregated Logs',{tags:['@aggr']}, () => {
-    const commonElements = [
-      TestIds.ToggleHistogramButton,
-      TestIds.TimeRangeDropdown,
-      TestIds.RefreshIntervalDropdown,
-      TestIds.SyncButton,
-      TestIds.AvailableAttributes,
-      TestIds.SeverityDropdown,
-      TestIds.ShowStatsToggle,
-      TestIds.ExecuteVolumeButton,
-      TestIds.ExecuteQueryButton,
-      TestIds.ShowQueryToggle,
-      TestIds.LogsTable,
-    ];
-    commonElements.forEach(id => {
-      cy.byTestID(id).should('exist');
-    });
-
-    cy.byTestID(TestIds.TenantToggle).should('not.exist'); //Specical feature
-    cy.byTestID(TestIds.AttributeFilters).within(() => {
-      cy.byTestID(TestIds.AvailableAttributes).click();
-      cy.contains('li', 'Content');
-      cy.contains('li', 'Pod');
-      cy.contains('li', 'Containers');
-      cy.contains('li', 'Namespaces').should('not.exist'); //Specical feature
-    })
-    if (Cypress.env('CLUSTERLOGGING_DATAMODE') === "select" ) {
-      cy.byTestID(TestIds.SchemaToggle).should('exist');
-    }
-  })
-
-  it('Show Resources',{tags:['@common']}, () => {
-    cy.get('button').contains('Show Resources').click();
-    getRunningPodName(APP_NAMESPACE1).then((pod1Name) => {
-      const pods = [pod1Name]
-      cy.checkLogPods(pods);
-      cy.byTestID(TestIds.ExecuteQueryButton).click();
-      cy.byTestID(TestIds.LogsTable).within(() => {
-        cy.get('td[data-label="message"]')
-        .first()
-        .within(()=> {
-          cy.get(`a[href="/k8s/cluster/namespaces/${APP_NAMESPACE1}"]`).should('exist');
-          cy.get(`a[href="/k8s/ns/${APP_NAMESPACE1}/pods/${pod1Name}"]`).should('exist');
-          cy.get(`a[href="/k8s/ns/${APP_NAMESPACE1}/pods/${pod1Name}/containers/centos-logtest"]`).should('exist')
-        });
-      });
-    });
-  });
-
-  //verify we can select both running and deleted pods
-  it('select both running and deleted pods',{tags:['@aggr']}, () => {
-    getRunningPodName(APP_NAMESPACE1).as('pod1Name');
-    cy.get('@pod1Name').then((podName) => {
-       cy.exec(`oc -n ${APP_NAMESPACE1} delete pods ${podName} --wait=true`);
-    });
-    getRunningPodName(APP_NAMESPACE1).as('pod1NewName');
-    cy.get('@pod1NewName').then((pod1NewName) => {
-      cy.exec(`oc -n ${APP_NAMESPACE1} wait pods/${pod1NewName} --for=condition=Ready`);
-    });
-
-    cy.get('@pod1Name').then((pod1Name) => {
-      cy.get('@pod1NewName').then((pod1NewName) => {
-        const pods = [pod1Name, pod1NewName]
-        cy.log(`pod1Name=${pod1Name},pod1NewName=${pod1NewName}`);
-        //cy.task('log', `pod1Name=${pod1Name} pod1NewName=${pod1NewName}`);
-        cy.checkLogPods(pods);
-        cy.showLogQueryInput();
-        cy.byTestID(TestIds.LogsQueryInput)
-          .find('textarea')
-          .invoke('val')
-          .then((val) => {
-            //{ kubernetes_pod_name=~"centos-logtest-xx|centos-logtest-yyy" 
-            expect(val).to.include(pod1Name)
-            expect(val).to.include(pod1NewName)
-          });
-        cy.byTestID(TestIds.ExecuteQueryButton).click();
-        const indexFields : IndexField = [
-          { name: 'openshift_log_type', value: "application" },
-          { name: 'k8s_namespace_name', value: APP_NAMESPACE1 },
-          { name: 'k8s_pod_name', value: `${pod1Name}|${pod1NewName}` },
-        ]
-        cy.assertFieldsInLogDetail(indexFields);
-      });
-    });
-  });
-
-  it('selected containers',{tags:['@aggr']}, () => {
-    const containers = ['centos-logtest']
-    cy.log(`container=centos-logtest`);
-    cy.checkLogContainers(containers);
-
-    cy.showLogQueryInput();
-    let pattern = /{ kubernetes_container_name="centos-logtest", kubernetes_pod_name=~"centos-logtest-\w+|centos-logtest-\w+" } | json/;
-    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
-      pattern = /{ k8s_container_name="centos-logtest", k8s_pod_name=~"centos-logtest-\w+|centos-logtest-\w+" } /;
-    }
-    cy.byTestID(TestIds.LogsQueryInput)
-      .find('textarea')
-      .invoke('val')
-      .should('match', pattern);
-    cy.byTestID(TestIds.ExecuteQueryButton).click();
-      const indexFields : IndexField = [
-        { name: 'k8s_namespace_name', value: `${APP_NAMESPACE1}` },
-        { name: 'k8s_container_name', value: 'centos-logtest' },
-      ]
-      cy.assertFieldsInLogDetail(indexFields)
-  });
-}
-
-export function observeLogTest() {
-
-  it('Show Resources',{tags:['@common']}, () => {
-    cy.get('button').contains('Show Resources').click();
-    getRunningPodName(APP_NAMESPACE1).then((pod1Name) => {
-      const namespaces = [APP_NAMESPACE1]
-      const pods = [pod1Name]
-      cy.checkLogNamespaces(namespaces);
-      cy.checkLogPods(pods);
-      cy.byTestID(TestIds.ExecuteQueryButton).click();
-      cy.byTestID(TestIds.LogsTable).within(() => {
-        cy.get('td[data-label="message"]')
-        .first()
-        .within(()=> {
-          cy.get(`a[href="/k8s/cluster/namespaces/${APP_NAMESPACE1}"]`).should('exist');
-          cy.get(`a[href="/k8s/ns/${APP_NAMESPACE1}/pods/${pod1Name}"]`).should('exist');
-          cy.get(`a[href="/k8s/ns/${APP_NAMESPACE1}/pods/${pod1Name}/containers/centos-logtest"]`).should('exist')
-        });
-      });
-    });
-  });
-
-  it('selected namespaces',{tags:['@observ']}, () => {
-    const namespaces=[APP_NAMESPACE1, APP_NAMESPACE2]
+// Common test cases for Observe->Logs Logs
+export class sharedTests {
+  // Select Namespaces in Logging panel. 
+  static selectNamespaces() {
+    const namespaces=[testData.appNamespace1, testData.appNamespace2]
     cy.checkLogNamespaces(namespaces);
     cy.showLogQueryInput();
     cy.byTestID(TestIds.LogsQueryInput)
       .find('textarea')
       .invoke('val')
       .then((val) => {
-        expect(val).to.include(APP_NAMESPACE1);
-        expect(val).to.include(APP_NAMESPACE2);
+        expect(val).to.include(testData.appNamespace1);
+        expect(val).to.include(testData.appNamespace2);
       });
 
-    const indexFields : IndexField = [
+    const indexFields : Cypress.IndexField[] = [
       { name: 'openshift_log_type', value: "application" },
-      { name: 'k8s_namespace_name', value: `${APP_NAMESPACE1}|${APP_NAMESPACE2}` },
-    ]
-    cy.assertFieldsInLogDetail(indexFields)
-  });
+      { name: 'k8s_namespace_name', value: `${testData.appNamespace1}|${testData.appNamespace2}` },
+    ];
+    cy.assertFieldsInLogDetail(indexFields);
+  }
 
-  //verify we can select both running and deleted pods
-  it('select both running and deleted pods',{tags:['@observ']}, () => {
-    getRunningPodName(APP_NAMESPACE1).as('pod1Name');
+  // Select Pods in console. Both deleted and running pods can be selected
+  static selectPods() {
+    getRunningPodName(testData.appNamespace1).as('pod1Name');
     cy.get('@pod1Name').then((podName) => {
-       cy.exec(`oc -n ${APP_NAMESPACE1} delete pods ${podName} --wait=true`);
+       cy.exec(`oc -n ${testData.appNamespace1} delete pods ${podName} --wait=true`);
     });
-    getRunningPodName(APP_NAMESPACE1).as('pod1NewName');
+    getRunningPodName(testData.appNamespace1).as('pod1NewName');
     cy.get('@pod1NewName').then((pod1NewName) => {
-      cy.exec(`oc -n ${APP_NAMESPACE1} wait pods/${pod1NewName} --for=condition=Ready`);
+      cy.exec(`oc -n ${testData.appNamespace1} wait pods/${pod1NewName} --for=condition=Ready`);
     });
-    getRunningPodName(APP_NAMESPACE2).as('pod2Name');
+    getRunningPodName(testData.appNamespace2).as('pod2Name');
 
     cy.get('@pod1Name').then((pod1Name) => {
       cy.get('@pod1NewName').then((pod1NewName) => {
         cy.get('@pod2Name').then((pod2Name) => {
-          const pods = [pod1Name, pod1NewName, pod2Name]
-          cy.log(`pod1Name=${pod1Name},pod1NewName=${pod1NewName}, pod2Name=${pod2Name}`);
+	  const pods: string[] = [pod1Name.trim(), pod1NewName.trim(), pod2Name.trim()];
           cy.checkLogPods(pods);
           //cy.task('log', `pod1Name=${pod1Name} pod1NewName=${pod1NewName}, pod2Name=${pod2Name} `);
           cy.showLogQueryInput();
@@ -207,47 +75,93 @@ export function observeLogTest() {
             .find('textarea')
             .invoke('val')
             .then((val) => {
-              //{ kubernetes_pod_name=~"centos-logtest-xx|centos-logtest-yyy|centos-logtest-zzz" 
+              //{ kubernetes_pod_name=~"centos-logtest-xx|centos-logtest-yyy|centos-logtest-zzz"
               expect(val).to.include(pod1Name);
               expect(val).to.include(pod1NewName);
               expect(val).to.include(pod2Name);
             });
           cy.byTestID(TestIds.ExecuteQueryButton).click();
-          const indexFields : IndexField = [
+          const indexFields : Cypress.IndexField[] = [
             { name: 'openshift_log_type', value: "application" },
-            { name: 'k8s_namespace_name', value: `${APP_NAMESPACE1}|${APP_NAMESPACE2}` },
+            { name: 'k8s_namespace_name', value: `${testData.appNamespace1}|${testData.appNamespace2}` },
             { name: 'k8s_pod_name', value: `${pod1Name}|${pod1NewName}|${pod2Name}` },
           ]
           cy.assertFieldsInLogDetail(indexFields);
         });
       });
     });
-  });
-}
+  }
 
-export function commonTest() {
-  it('display applicatioins logs',{tags:['@common']}, () => {
-    cy.runLogQuery(`{{}kubernetes_namespace_name="${APP_NAMESPACE1}" {}}`)
-    cy.assertAppLogsInLogsTable();
-  });
 
-  // search APP_NAMESPACE1, this ensure the case succeed in Observe/Logs when there multiple namespace
-  it('Search by content ',{tags:['@common']}, () => {
+  // Select containers. same name container from all namesapcs present
+  static selectContainers(){
+    getRunningPodName(testData.appNamespace1).as('pod1Name');
+    getRunningPodName(testData.appNamespace2).as('pod2Name');
+
+    cy.get('@pod1Name').then((pod1Name) => {
+      cy.get('@pod2Name').then((pod2Name) => {
+        const containers = [testData.appContainerName];
+        cy.checkLogContainers(containers);
+        cy.showLogQueryInput();
+
+        let pattern1 = new RegExp(`kubernetes_container_name="${testData.appContainerName}"`);
+	let pattern2 = new RegExp(`kubernetes_pod_name.*${pod1Name}.*`);
+	let pattern3 = new RegExp(`kubernetes_pod_name.*${pod2Name}.*`);
+        if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+          pattern1 = new RegExp(`k8s_container_name="${testData.appContainerName}"`);
+	  pattern2 = new RegExp(`k8s_pod_name.*${pod1Name}.*`);
+	  pattern3 = new RegExp(`k8s_pod_name.*${pod2Name}.*`);
+        }
+        cy.byTestID(TestIds.LogsQueryInput)
+          .find('textarea')
+          .invoke('val')
+          .then((val) => {
+            expect(val).to.match(pattern1);
+            expect(val).to.match(pattern2);
+            expect(val).to.match(pattern3);
+	  });
+      });
+    });
+  }
+
+  // list logs which incldue content testData.appMessageKey
+  static searchContent(){
     cy.selectLogAttribute('Content');
     cy.byTestID(TestIds.AttributeFilters).within(() => {
       cy.get('input[aria-label="Search by Content"]')
         .clear()
-        .type('SVTLogger', {delay: 0})
+        .type(testData.appMessageKey, {delay: 0})
       });
     cy.showLogQueryInput();
     cy.byTestID(TestIds.LogsQueryInput,{timeout: 60000})
       .find('textarea', { timeout: 60000 })
-      .should('include.value', 'SVTLogger');
+      .should('include.value', testData.appMessageKey);
     cy.byTestID(TestIds.ExecuteQueryButton).click();
     cy.assertAppLogsInLogsTable();
-  })
+  }
 
-  it('filter logs by last duration ',{tags:['@common']}, () => {
+  // show the resource information of the log record
+  static showResources() {
+    cy.get('button').contains('Show Resources').click();
+    getRunningPodName(testData.appNamespace1).then((pod1Name) => {
+      const namespaces = [testData.appNamespace1]
+      const pods = [pod1Name]
+      //cy.checkLogNamespaces(namespaces);
+      cy.checkLogPods(pods);
+      cy.byTestID(TestIds.ExecuteQueryButton).click();
+      cy.byTestID(TestIds.LogsTable).within(() => {
+        cy.get('td[data-label="message"]')
+        .first()
+        .within(()=> {
+          cy.get(`a[href="/k8s/cluster/namespaces/${testData.appNamespace1}"]`).should('exist');
+          cy.get(`a[href="/k8s/ns/${testData.appNamespace1}/pods/${pod1Name}"]`).should('exist');
+          cy.get(`a[href="/k8s/ns/${testData.appNamespace1}/pods/${pod1Name}/containers/${testData.appContainerName}"]`).should('exist')
+        });
+      });
+    });
+  }
+
+  static filterByTimeDuration(){
     cy.byTestID(TestIds.TimeRangeDropdown).find('button').click();
     cy.byTestID(TestIds.TimeRangeDropdown).contains('Last 5 minutes').click();
     cy.url().should('match', /start=now-5m&end=now/);
@@ -270,15 +184,15 @@ export function commonTest() {
     cy.byTestID(TestIds.TimeRangeDropdown).contains('Last 2 weeks').click();
     cy.url().should('match', /start=now-2w&end=now/);
     cy.byTestID(TestIds.ExecuteQueryButton).click();
-    cy.assertLogsInLogsTable()
+    cy.assertLogsInLogsTable();
     // recover to 1 hour
     cy.byTestID(TestIds.TimeRangeDropdown).find('button').click();
     cy.byTestID(TestIds.TimeRangeDropdown).contains('Last 1 hour').click();
     cy.byTestID(TestIds.ExecuteQueryButton).click();
-    cy.assertLogsInLogsTable()
-  });
+    cy.assertLogsInLogsTable();
+  }
 
-  it('filter logs by custom range',{tags:['@common']}, () => { 
+  static filterByTimeRange(){
     const pad = (num) => num.toString().padStart(2, '0');
     const now = new Date();
     // startDate = now-3day 
@@ -316,134 +230,14 @@ export function commonTest() {
     cy.byTestID(TestIds.TimeRangeDropdown).find('button').click();
     cy.byTestID(TestIds.TimeRangeDropdown).contains('Last 1 hour').click();
     cy.byTestID(TestIds.ExecuteQueryButton).click();
-    cy.assertLogsInLogsTable()
-  });
+    cy.assertLogsInLogsTable();
+  }
 
-  //Check the fileds in Log detail for viaq
-  it('validate Viaq log format for container',{tags:['@common']}, function () {
-    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) !== "viaq") {
-      this.skip();
-    }
-    const isoTimestampRegex = '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$'
-    const timestampPattern = /^[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{2}:\d{2}:\d{2}\.\d{3}$/;
-    const viaqlogFormat = '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} - SVTLogger - INFO - .*$'
-
-    const viaqUniqueFields : IndexField = [
-      { name: '_timestamp', value: isoTimestampRegex },
-      { name: 'hostname', value: "" },
-      { name: 'message', value: "" },
-      { name: 'kubernetes_container_id', value: "" },
-      { name: 'kubernetes_container_image', value: "" },
-      { name: 'kubernetes_container_iostream', value: "" },
-      { name: 'kubernetes_pod_ip', value: "" },
-      { name: 'kubernetes_pod_id', value: "" },
-      { name: 'kubernetes_pod_owner', value: "" },
-      { name: 'kubernetes_namespace_id',value: "" },
-      { name: 'openshift_cluster_id', value: "" },
-      { name: 'openshift_sequence', value: "" },
-      { name: 'level', value: "" },
-      { name: 'log_source', value: "container" },
-    ];
-    const otelFields : IndexField = [
-      { name: 'k8s_container_name', value: "" },
-      { name: 'k8s_namespace_name', value: "" },
-      { name: 'k8s_node_name', value: "" },
-      { name: 'k8s_pod_name', value: "" },
-      { name: 'kubernetes_container_name',value: "" },
-      { name: 'kubernetes_host', value: "" },
-      { name: 'kubernetes_namespace_name', value: "" },
-      { name: 'kubernetes_pod_name', value: "" },
-      { name: 'log_type', value: "application" },
-      { name: 'openshift_log_type', value: "application" },
-    ];
-    const mergedFields = [...viaqUniqueFields, ...otelFields];
-
-    cy.showLogQueryInput();
-    cy.byTestID(TestIds.LogsQueryInput)
-      .find('textarea')
-      .invoke('val')
-      .should('include', '| json');
-
-    cy.byTestID(TestIds.LogsTable)
-      .should('exist')
-      .within(() => {
-        cy.get('td[data-label="date"]')
-          .first()
-          .invoke('text')
-          .should('match', timestampPattern);
-        cy.get('td[data-label="message"]')
-          .first()
-          .invoke('text')
-          .should('match', viaqlogFormat);
-      });
-    cy.assertFieldsInLogDetail(mergedFields)
-  });
-
-  it('validate Otel log format for container',{tags:['@common']}, function(){
-    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) != "otel" ) {
-      this.skip();
-    }
-    const viaqUniqueFields : IndexField = [
-      { name: '_timestamp', value: isoTimestampRegex },
-      { name: 'hostname', value: "" },
-      { name: 'message', value: "" },
-      { name: 'kubernetes_container_id', value: "" },
-      { name: 'kubernetes_container_image', value: "" },
-      { name: 'kubernetes_container_iostream', value: "" },
-      { name: 'kubernetes_pod_ip', value: "" },
-      { name: 'kubernetes_pod_id', value: "" },
-      { name: 'kubernetes_pod_owner', value: "" },
-      { name: 'kubernetes_namespace_id',value: "" },
-      { name: 'openshift_cluster_id', value: "" },
-      { name: 'openshift_sequence', value: "" },
-      { name: 'level', value: "" },
-      { name: 'log_source', value: "container" },
-    ];
-    const otelFields : IndexField = [
-      { name: 'k8s_container_name', value: "" },
-      { name: 'k8s_namespace_name', value: "" },
-      { name: 'k8s_node_name', value: "" },
-      { name: 'k8s_pod_name', value: "" },
-      { name: 'kubernetes_container_name',value: "" },
-      { name: 'kubernetes_host', value: "" },
-      { name: 'kubernetes_namespace_name', value: "" },
-      { name: 'kubernetes_pod_name', value: "" },
-      { name: 'log_type', value: "application" },
-      { name: 'openshift_log_type', value: "application" },
-    ];
-
-    const timestampPattern = /^[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{2}:\d{2}:\d{2}\.\d{3}$/;
-    const otellogFormat = /^\{.*"@timestamp":".+?",.*"hostname":".+?",.*"kubernetes":\{.*\},.*"level":"\w+",.*"log_source":"container",.*"log_type":"application",.*"message":".+?",.*"openshift":\{.*\}.*\}$/
-
-    cy.showLogQueryInput();
-    cy.byTestID(TestIds.LogsQueryInput)
-      .find('textarea')
-      .invoke('val')
-      .should('not.include', '| json');
-    cy.byTestID(TestIds.ExecuteQueryButton).click();
-
-    cy.byTestID(TestIds.LogsTable)
-      .should('exist')
-      .within(() => {
-        cy.get('td[data-label="date"]')
-          .first()
-          .invoke('text')
-          .should('match', timestampPattern);
-
-        cy.get('td[data-label="message"]')
-          .first()
-          .invoke('text')
-          .should('match', otellogFormat);
-      });
-    cy.assertFieldsInLogDetail(otelFields)
-  });
-
-  it('switch the dataFormat',{tags:['@common']}, function () {
+  // switch the dataSchema when dataMode is select
+  static switchDataSchema(context: Mocha.Context) {
     if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) != "select" ) {
-    this.skip();
+      context.skip();
     }
-    const viaqlogFormat = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} - SVTLogger - INFO - .*$/
-    const otellogFormat = /^\{.*"@timestamp":".+?",.*"hostname":".+?",.*"kubernetes":\{.*\},.*"level":"\w+",.*"log_source":"container",.*"log_type":"application",.*"message":".+?",.*"openshift":\{.*\}.*\}$/
 
     //default viaq
     cy.byTestID(TestIds.SchemaToggle)
@@ -454,14 +248,7 @@ export function commonTest() {
       .find('textarea')
       .invoke('val')
       .should('include', '| json');
-    cy.byTestID(TestIds.LogsTable)
-      .within(() => {
-        // Check first message matches viaqlogFormat
-        cy.get('td[data-label="message"]')
-         .first()
-         .invoke('text')
-         .should('match', viaqlogFormat);
-      });
+    cy.assertLogsInLogsTable();
 
     //switch to Otel
     cy.byTestID(TestIds.SchemaToggle).click({force: true});
@@ -474,15 +261,7 @@ export function commonTest() {
       .invoke('val')
       .should('not.include', '| json');
     cy.byTestID(TestIds.ExecuteQueryButton).click();
-    cy.byTestID(TestIds.LogsTable)
-      .should('exist')
-      .within(() => {
-        // Check first message matches otellogFormat
-        cy.get('td[data-label="message"]')
-         .first()
-         .invoke('text')
-         .should('match', otellogFormat);
-      });
+    cy.assertLogsInLogsTable();
 
     //switch back to Viaq
     cy.byTestID(TestIds.SchemaToggle).click({force: true});
@@ -495,13 +274,595 @@ export function commonTest() {
       .invoke('val')
       .should('include', '| json');
     cy.byTestID(TestIds.ExecuteQueryButton).click();
+    cy.assertLogsInLogsTable();
+  }
+
+  // show the application logs
+  static selectApplicationLog(){
+    cy.selectLogTenant('application')
+    let query = '{ log_type="application" } | json'
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      query = '{ openshift_log_type="application" }'
+    }
+    cy.showLogQueryInput();
+    cy.byTestID(TestIds.LogsQueryInput)
+      .find('textarea')
+      .invoke('val')
+      .should('eq', query)
+    cy.assertAppLogsInLogsTable();
+  }
+
+  // show infrastructure logs
+  static selectInfraLog(){
+    cy.selectLogTenant('infrastructure')
+    let query = '{ log_type="infrastructure" } | json'
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      query = '{ openshift_log_type="infrastructure" }'
+    }
+    cy.showLogQueryInput();
+    cy.byTestID(TestIds.LogsQueryInput)
+      .find('textarea')
+      .invoke('val')
+      .should('eq', query)
+    cy.assertInfraLogsInLogsTable();
+  }
+
+  // show audit logs
+  static selectAuditLog(){
+    cy.selectLogTenant('audit')
+    let query = '{ log_type="audit" } | json'
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      query = '{ openshift_log_type="audit" }'
+    }
+    cy.showLogQueryInput();
+    cy.byTestID(TestIds.LogsQueryInput)
+      .find('textarea')
+      .invoke('val')
+      .should('eq', query)
+    cy.assertAuditLogsInLogsTable();
+  }
+
+  // validate the common fields present. 
+  static validateAppContainerLogFields() {
+    // Note: only representative field are checked, not all fileds
+    // value="" means value will not be checked
+    const indexViaqFields : Cypress.IndexField[] = [
+      { name: '_timestamp', value: testData.isoTimestampRegex },
+      { name: 'hostname', value: testData.hostnameRegex },
+      { name: 'kubernetes_container_image', value: "" },
+      { name: 'kubernetes_labels_test',value: testData.appContainerName },
+      { name: 'kubernetes_labels_run',value: testData.appContainerName },
+      { name: 'kubernetes_pod_owner', value: "" },
+      { name: 'kubernetes_container_id', value: testData.uuidRegex },
+      { name: 'kubernetes_pod_ip', value: "" },
+      { name: 'kubernetes_pod_id', value: testData.uuidRegex },
+      { name: 'kubernetes_container_iostream', value: /\w+/ },
+      { name: 'kubernetes_namespace_id',value: testData.uuidRegex },
+      { name: 'message', value: "" },
+      { name: 'openshift_sequence', value: /\d+/ },
+    ];
+    const indexCommonFields : Cypress.IndexField[] = [
+      { name: 'k8s_container_name', value: testData.dnsRegex },
+      { name: 'k8s_namespace_name', value: testData.dnsRegex },
+      { name: 'k8s_node_name', value: testData.dnsRegex },
+      { name: 'k8s_pod_name', value: testData.dnsRegex },
+      { name: 'kubernetes_container_name',value: testData.dnsRegex },
+      { name: 'kubernetes_namespace_name', value: testData.dnsRegex },
+      { name: 'kubernetes_host', value: testData.hostnameRegex },
+      { name: 'kubernetes_pod_name', value: testData.hostnameRegex },
+      { name: 'level', value: /\w+/ },
+      { name: 'log_type', value: "application" },
+      { name: 'log_source', value: "container" },
+      { name: 'openshift_cluster_id', value: testData.uuidRegex },
+      { name: 'openshift_log_type', value: "application" },
+    ];
+    const indexOtelFields : Cypress.IndexField[] = [
+      { name: 'observed_timestamp', value: /\d{19}/ },
+      { name: 'severity_text', value: /\w+/ },
+      { name: 'openshift_cluster_uid', value: testData.uuidRegex },
+      { name: 'openshift_log_source', value: "container" },
+      { name: 'k8s_pod_label_test',value: testData.appContainerName },
+      { name: 'k8s_pod_label_run',value: testData.appContainerName },
+    ];
+    const timestampPattern = /^[A-Z][a-z]{2} \d{1,2}, \d{4}, \d{2}:\d{2}:\d{2}\.\d{3}$/;
+    let mergedFields = [...indexViaqFields,...indexCommonFields];
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) == "otel" ) {
+      mergedFields = [...indexOtelFields,...indexCommonFields];
+    }
+
+    let query = '{{}log_type="application",kubernetes_namespace_name="log-test-app1"{}}|json'
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      query = '{{} openshift_log_type="application",k8s_namespace_name="log-test-app1" {}}'
+    }
+    cy.runLogQuery(query);
+
     cy.byTestID(TestIds.LogsTable)
       .should('exist')
       .within(() => {
+        cy.get('td[data-label="date"]')
+          .first()
+          .invoke('text')
+          .should('match', timestampPattern);
         cy.get('td[data-label="message"]')
           .first()
           .invoke('text')
-          .should('match', viaqlogFormat);
+          .should('match', testData.appMessageRegex);
       });
-  });
+    cy.assertFieldsInLogDetail(mergedFields);
+  }
+
+  // validate the common fields present. 
+  static validateContainerLogFields(){
+    // Note: only representative field are checked, not all fileds
+    // Viaq Only Fields
+    const indexViaqFields : Cypress.IndexField[] = [
+      { name: '_timestamp', value: testData.isoTimestampRegex },
+      { name: 'hostname', value: testData.hostnameRegex },
+      { name: 'kubernetes_container_image', value: "" },
+      { name: 'kubernetes_pod_owner', value: "" },
+      { name: 'kubernetes_container_id', value: testData.uuidRegex },
+      { name: 'kubernetes_pod_ip', value: "" },
+      { name: 'kubernetes_pod_id', value: testData.uuidRegex },
+      { name: 'kubernetes_container_iostream', value: /\w+/ },
+      { name: 'kubernetes_namespace_id',value: testData.uuidRegex },
+      { name: 'message', value: "" },
+      { name: 'openshift_sequence', value: /\d+/ },
+    ];
+    //common index Fields for both viaq and Otel
+    const indexCommonFields : Cypress.IndexField[] = [
+      { name: 'k8s_container_name', value: testData.dnsRegex },
+      { name: 'k8s_namespace_name', value: testData.dnsRegex },
+      { name: 'k8s_node_name', value: testData.dnsRegex },
+      { name: 'k8s_pod_name', value: testData.dnsRegex },
+      { name: 'kubernetes_host', value: testData.hostnameRegex },
+      { name: 'log_type', value: "infrastructure" },
+      { name: 'log_source', value: "container" },
+      { name: 'openshift_log_type', value: "infrastructure" },
+      { name: 'openshift_cluster_id', value: testData.uuidRegex },
+    ];
+    // Otel only Fields
+    const indexOtelFields : Cypress.IndexField[] = [
+      { name: 'severity_text', value: /\w+/ },
+      { name: 'observed_timestamp', value: /\d{19}/ },
+      { name: 'openshift_cluster_uid', value: testData.uuidRegex },
+      { name: 'openshift_log_source', value: "container" },
+    ];
+    let mergedFields = [...indexViaqFields,...indexCommonFields];
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      mergedFields = [...indexOtelFields,...indexCommonFields];
+    }
+    cy.assertFieldsInLogDetail(mergedFields);
+  }
+
+  // validate the common fields present. 
+  static validateInfraContainerLogFields(){
+    cy.selectLogTenant('infrastructure')
+    let query = '{{}log_type="infrastructure"{}}|json|log_source="container"'
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      query = '{{} openshift_log_type="infrastructure",openshift_log_source="container" {}}'
+    }
+    cy.runLogQuery(query);
+    sharedTests.validateContainerLogFields();
+  }
+
+  // validate the common fields present. 
+  static validateInfraNodeLogFields(){
+    cy.selectLogTenant('infrastructure')
+    let query = '{{}log_type="infrastructure"{}}|json|log_source="node"'
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      query = '{{} log_type="infrastructure",log_source="node" {}}'
+    }
+    cy.runLogQuery(query)
+
+    // Note: only representative field are checked, not all fileds
+    const systemIDRegex = /^[0-9a-f]{32}$/
+    //Viaq IndexFields
+    const indexViaqFields : Cypress.IndexField[] = [
+      { name: '_timestamp', value: testData.isoTimestampRegex },
+      { name: 'hostname', value: testData.hostnameRegex },
+      { name: 'message', value: "" },
+      { name: 'openshift_sequence', value: /\d+/ },
+      { name: 'systemd_t_BOOT_ID', value: systemIDRegex},
+      { name: 'systemd_t_COMM', value: "" },
+      { name: 'systemd_t_EXE', value: "" },
+      { name: 'systemd_t_PID', value: /\d+/ },
+      { name: 'systemd_t_SYSTEMD_UNIT', value: "" },
+      { name: 'systemd_t_TRANSPORT', value: /\w+/ },
+      { name: 'systemd_t_UID', value: /\d+/ },
+      { name: 'systemd_u_SYSLOG_FACILITY', value: /\d+/ },
+    ];
+    //Common IndexFields
+    const indexCommonFields : Cypress.IndexField[] = [
+      { name: 'k8s_node_name', value: testData.dnsRegex },
+      { name: 'kubernetes_host', value: testData.dnsRegex },
+      { name: 'level', value: /\w+/ },
+      { name: 'log_type', value: "infrastructure" },
+      { name: 'log_source', value: "node" },
+      { name: 'openshift_log_type', value: "infrastructure" },
+      { name: 'openshift_cluster_id', value: testData.uuidRegex },
+    ];
+    // Otel only Fields
+    const indexOtelFields : Cypress.IndexField[] = [
+      { name: 'severity_text', value: /\w+/ },
+      { name: 'observed_timestamp', value: /\d{19}/ },
+      { name: 'openshift_cluster_uid', value: testData.uuidRegex },
+      { name: 'process_command_line', value: "" },
+      { name: 'process_executable_name', value: "" },
+      { name: 'process_executable_path', value: "" },
+      { name: 'process_pid', value: /\d+/ },
+      { name: 'openshift_log_source', value: "node" },
+    ];
+    let mergedFields = [...indexViaqFields,...indexCommonFields];
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      mergedFields = [...indexOtelFields,...indexCommonFields];
+    }
+    cy.assertFieldsInLogDetail(mergedFields);
+  }
+
+  // validate the common fields present.
+  static validateKubeAPILogFields(){
+    let query = '{{} log_type="audit" {}} | json | log_source =~ "kubeAPI|openshiftAPI"'
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      query = '{{} openshift_log_type="audit", openshift_log_source =~ "kubeAPI|openshiftAPI"{}}'
+    }
+    //Viaq IndexFields
+    const indexViaqFields : Cypress.IndexField[] = [
+      { name: '_timestamp', value: testData.isoTimestampRegex },
+      { name: 'apiVersion', value: "audit.k8s.io/v1" },
+      { name: 'auditID', value: testData.uuidRegex },
+      { name: 'hostname', value: testData.hostnameRegex },
+      { name: 'kind', value: /\w+/ },
+      { name: 'level', value: /\w+/ },
+      { name: 'k8s_audit_level', value: /\w+/ },
+      { name: 'requestReceivedTimestamp', value: "" },
+      { name: 'requestURI', value: "" },
+      { name: 'stage', value: /\w+/ },
+      { name: 'stageTimestamp', value: /\w+/ },
+      { name: 'user_username', value: /\w+/ },
+      { name: 'verb', value: /\w+/ },
+      { name: 'openshift_sequence', value: /\d+/ },
+    ];
+    //Common IndexFields
+    const indexCommonFields : Cypress.IndexField[] = [
+      { name: 'k8s_node_name', value: testData.dnsRegex },
+      { name: 'kubernetes_host', value: testData.dnsRegex },
+      { name: 'log_type', value: "audit" },
+      { name: 'log_source', value: /\w+/ },
+      { name: 'openshift_log_type', value: "audit" },
+      { name: 'openshift_cluster_id', value: testData.uuidRegex },
+    ];
+    //Otel IndexFields
+    const indexOtelFields : Cypress.IndexField[] = [
+      { name: 'observed_timestamp', value: /\d{19}/ },
+      { name: 'openshift_log_source', value: /\w+/ },
+      { name: 'openshift_cluster_uid', value: testData.uuidRegex },
+    ];
+    let mergedFields = [...indexViaqFields,...indexCommonFields];
+
+    cy.selectLogTenant('audit');
+    cy.runLogQuery(query);
+
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      mergedFields = [...indexOtelFields,...indexCommonFields];
+    }
+    cy.assertFieldsInLogDetail(mergedFields);
+  }
+ 
+  // validate the common fields present.
+  static validateLinuxLogFields(){
+    let query = '{{}log_type="audit"{}}|json|log_source="auditd"'
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      query = '{{}openshift_log_type="audit",openshift_log_source="auditd"{}}'
+    }
+
+    cy.selectLogTenant('audit');
+    cy.runLogQuery(query);
+
+    //Viaq IndexFields
+    const indexViaqFields : Cypress.IndexField[] = [
+      { name: '_timestamp', value: testData.isoTimestampRegex },
+      { name: 'audit_linux_record_id', value: /\w+/ },
+      { name: 'audit_linux_type', value: /\w+/ },
+      { name: 'level', value: /\w+/ },
+      { name: 'message', value: ""},
+      { name: 'openshift_sequence', value: /\d+/ },
+    ];
+    //Common IndexFields
+    const indexCommonFields : Cypress.IndexField[] = [
+      { name: 'k8s_node_name', value: testData.dnsRegex },
+      { name: 'kubernetes_host', value: testData.dnsRegex },
+      { name: 'log_type', value: "audit" },
+      { name: 'log_source', value: "auditd"},
+      { name: 'openshift_log_type', value: "audit" },
+      { name: 'openshift_cluster_id', value: testData.uuidRegex },
+    ];
+    //Otel IndexFields
+    const indexOtelFields : Cypress.IndexField[] = [
+      { name: 'observed_timestamp', value: /\d{19}/ },
+      { name: 'openshift_log_source', value: "auditd" },
+      { name: 'openshift_cluster_uid', value: testData.uuidRegex },
+    ];
+
+    let mergedFields = [...indexViaqFields,...indexCommonFields];
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      mergedFields = [...indexOtelFields,...indexCommonFields];
+    }
+    cy.assertFieldsInLogDetail(mergedFields);
+  }
+}
+
+export class coreObsLogsTests extends sharedTests {
+  // validate all elements presents.
+  static validateElements(){
+    const commonElements = [
+      TestIds.ToggleHistogramButton,
+      TestIds.TimeRangeDropdown,
+      TestIds.RefreshIntervalDropdown,
+      TestIds.SyncButton,
+      TestIds.AvailableAttributes,
+      TestIds.SeverityDropdown,
+      TestIds.ShowStatsToggle,
+      TestIds.ExecuteVolumeButton,
+      TestIds.ExecuteQueryButton,
+      TestIds.ShowQueryToggle,
+      TestIds.LogsTable,
+    ];
+    commonElements.forEach(id => {
+      cy.byTestID(id).should('exist');
+    });
+
+    cy.byTestID(TestIds.TenantToggle).should('exist');
+    cy.byTestID(TestIds.AttributeFilters).within(() => {
+      cy.byTestID(TestIds.AvailableAttributes).click();
+      cy.contains('li', 'Content');
+      cy.contains('li', 'Pod');
+      cy.contains('li', 'Containers');
+      cy.contains('li', 'Namespaces');
+    })
+    if (Cypress.env('CLUSTERLOGGING_DATAMODE') === "select" ) {
+      cy.byTestID(TestIds.SchemaToggle).should('exist');
+    }
+    if (Cypress.env('LOGGING_UI_TIMEZONE') === "true" ) {
+      cy.byLegacyTestID(TestIds.TimezoneDropdown).should('exist');
+    }
+  }
+}
+
+// shared test cases for DevConsole&AdminConsole -> Observe->logs
+export class devObsLogsTests extends sharedTests{
+  // validate all elements presents
+  static validateElements(){
+    const commonElements = [
+      TestIds.ToggleHistogramButton,
+      TestIds.TimeRangeDropdown,
+      TestIds.RefreshIntervalDropdown,
+      TestIds.SyncButton,
+      TestIds.AvailableAttributes,
+      TestIds.SeverityDropdown,
+      TestIds.ShowStatsToggle,
+      TestIds.ExecuteVolumeButton,
+      TestIds.ExecuteQueryButton,
+      TestIds.ShowQueryToggle,
+      TestIds.LogsTable,
+    ];
+    commonElements.forEach(id => {
+      cy.byTestID(id).should('exist');
+    });
+
+    cy.byTestID(TestIds.TenantToggle).should('not.exist'); //Specical feature
+    cy.byTestID(TestIds.AttributeFilters).within(() => {
+      cy.byTestID(TestIds.AvailableAttributes).click();
+      cy.contains('li', 'Content');
+      cy.contains('li', 'Pod');
+      cy.contains('li', 'Containers');
+      cy.contains('li', 'Namespaces');
+    })
+    if (Cypress.env('CLUSTERLOGGING_DATAMODE') === "select" ) {
+      cy.byTestID(TestIds.SchemaToggle).should('exist');
+    }
+    if (Cypress.env('LOGGING_UI_TIMEZONE') === "true" ) {
+      cy.byLegacyTestID(TestIds.TimezoneDropdown).should('exist');
+    }
+  }
+
+    //list containers we want to show. note: only container from current namespace can be selected
+  static selectContainers(){
+    const containers = [testData.appContainerName]
+    cy.checkLogContainers(containers);
+
+    cy.showLogQueryInput();
+    let pattern1 = new RegExp(`{.*kubernetes_container_name="${testData.appContainerName}".*} | json`);
+    let pattern2 = new RegExp(`{.*kubernetes_namespace_name="${testData.appNamespace1}".*} | json`);
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      pattern1 = new RegExp(`{.*k8s_container_name="${testData.appContainerName}".*}`);
+      pattern2 = new RegExp(`{.*k8s_namespace_name="${testData.appNamespace1}".*}`);
+    }
+    cy.byTestID(TestIds.LogsQueryInput)
+      .find('textarea')
+      .invoke('val')
+      .then((val) => {
+          expect(val).to.match(pattern1)
+          expect(val).to.match(pattern2)
+      });
+    cy.byTestID(TestIds.ExecuteQueryButton).click();
+    const indexFields : IndexField = [
+      { name: 'k8s_namespace_name', value: testData.appNamespace1 },
+      { name: 'k8s_container_name', value: testData.appContainerName },
+    ];
+    cy.assertFieldsInLogDetail(indexFields);
+  }
+
+  // show the application logs
+  static selectApplicationLog(){
+    let  query = `{ kubernetes_namespace_name="${testData.appNamespace1}" } | json`
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      query = `{ k8s_namespace_name="${testData.appNamespace1}" }`
+    }
+    cy.showLogQueryInput();
+    cy.byTestID(TestIds.LogsQueryInput)
+      .find('textarea')
+      .invoke('val')
+      .should('eq', query)
+    cy.assertAppLogsInLogsTable();
+  }
+}
+
+// shared test cases for DevConsole&AdminConsole -> Pod Detail ->Aggregation Logs 
+export class aggrLogsTests extends sharedTests {
+  // validate all elements presents
+  static validateElements(){
+    const commonElements = [
+      TestIds.ToggleHistogramButton,
+      TestIds.TimeRangeDropdown,
+      TestIds.RefreshIntervalDropdown,
+      TestIds.SyncButton,
+      TestIds.AvailableAttributes,
+      TestIds.SeverityDropdown,
+      TestIds.ShowStatsToggle,
+      TestIds.ExecuteVolumeButton,
+      TestIds.ExecuteQueryButton,
+      TestIds.ShowQueryToggle,
+      TestIds.LogsTable,
+    ];
+    commonElements.forEach(id => {
+      cy.byTestID(id).should('exist');
+    });
+
+    cy.byTestID(TestIds.TenantToggle).should('not.exist'); //Specical feature
+    cy.byTestID(TestIds.AttributeFilters).within(() => {
+      cy.byTestID(TestIds.AvailableAttributes).click();
+      cy.contains('li', 'Content');
+      cy.contains('li', 'Pod');
+      cy.contains('li', 'Containers');
+      cy.contains('li', 'Namespaces').should('not.exist');
+    })
+    if (Cypress.env('CLUSTERLOGGING_DATAMODE') === "select" ) {
+      cy.byTestID(TestIds.SchemaToggle).should('exist');
+    }
+    if (Cypress.env('LOGGING_UI_TIMEZONE') === "true" ) {
+      cy.byLegacyTestID(TestIds.TimezoneDropdown).should('exist');
+    }
+  }
+
+  //list pods we want to show. note: both deleted and running pods can be selected. Only pods from current namespace can be selected
+  static selectPods() {
+    getRunningPodName(testData.appNamespace1).as('pod1Name');
+    cy.get('@pod1Name').then((podName) => {
+       cy.exec(`oc -n ${testData.appNamespace1} delete pods ${podName} --wait=true`);
+    });
+    getRunningPodName(testData.appNamespace1).as('pod1NewName');
+    cy.get('@pod1NewName').then((pod1NewName) => {
+      cy.exec(`oc -n ${testData.appNamespace1} wait pods/${pod1NewName} --for=condition=Ready`);
+    });
+
+    cy.get('@pod1Name').then((pod1Name) => {
+      cy.get('@pod1NewName').then((pod1NewName) => {
+        const pods: string[] = [pod1Name.trim(), pod1NewName.trim()];
+        cy.checkLogPods(pods);
+        cy.showLogQueryInput();
+        cy.byTestID(TestIds.LogsQueryInput)
+          .find('textarea')
+          .invoke('val')
+          .then((val) => {
+            //{ kubernetes_pod_name=~"centos-logtest-xx|centos-logtest-yyy" 
+            expect(val).to.include(pod1Name)
+            expect(val).to.include(pod1NewName)
+          });
+        cy.byTestID(TestIds.ExecuteQueryButton).click();
+        const indexFields : Cypress.IndexField[] = [
+          { name: 'openshift_log_type', value: "application" },
+          { name: 'k8s_namespace_name', value: testData.appNamespace1 },
+          { name: 'k8s_pod_name', value: `${pod1Name}|${pod1NewName}` },
+        ]
+        cy.assertFieldsInLogDetail(indexFields);
+      });
+    });
+  }
+
+
+  //list containers we want to show. note: only container from current namespace can be selected
+  static selectContainers(){
+    const containers = [testData.appContainerName]
+    cy.checkLogContainers(containers);
+
+    cy.showLogQueryInput();
+    let pattern1 = new RegExp(`{.*kubernetes_container_name="${testData.appContainerName}".*} | json`);
+    let pattern2 = new RegExp(`{.*kubernetes_pod_name="${testData.appContainerName}-\\w+".*} | json`);
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      pattern1 = new RegExp(`{.*k8s_container_name="${testData.appContainerName}".*}`);
+      pattern2 = new RegExp(`{.*k8s_pod_name="${testData.appContainerName}-\\w+".*}`);
+    }
+    cy.byTestID(TestIds.LogsQueryInput)
+      .find('textarea')
+      .invoke('val')
+      .then((val) => {
+          expect(val).to.match(pattern1)
+          expect(val).to.match(pattern2)
+      });
+    cy.byTestID(TestIds.ExecuteQueryButton).click();
+    const indexFields : IndexField = [
+      { name: 'k8s_namespace_name', value: testData.appNamespace1 },
+      { name: 'k8s_container_name', value: testData.appContainerName },
+    ];
+    cy.assertFieldsInLogDetail(indexFields);
+  }
+
+  //list containers we want to show. note: only container from current namespace can be selected
+  static showResources(){
+    cy.get('button').contains('Show Resources').click();
+    getRunningPodName(testData.appNamespace1).then((pod1Name) => {
+      const pods = [pod1Name]
+      cy.checkLogPods(pods);
+      cy.byTestID(TestIds.ExecuteQueryButton).click();
+      cy.byTestID(TestIds.LogsTable).within(() => {
+        cy.get('td[data-label="message"]')
+        .first()
+        .within(()=> {
+          cy.get(`a[href="/k8s/cluster/namespaces/${testData.appNamespace1}"]`).should('exist');
+          cy.get(`a[href="/k8s/ns/${testData.appNamespace1}/pods/${pod1Name}"]`).should('exist');
+          cy.get(`a[href="/k8s/ns/${testData.appNamespace1}/pods/${pod1Name}/containers/${testData.appContainerName}"]`).should('exist')
+        });
+      });
+    });
+  }
+
+  // show the application logs
+  static selectApplicationLog(){
+    let query = '{ log_type="application" } | json'
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      query = '{ openshift_log_type="application" }'
+    }
+    cy.showLogQueryInput();
+    cy.byTestID(TestIds.LogsQueryInput)
+      .find('textarea')
+      .invoke('val')
+      .should('eq', query)
+    cy.assertAppLogsInLogsTable();
+  }
+  
+  //Infra Container logs can be show when user can view infra namespace
+  static validateInfraContainerLogFields(){
+    cy.showAdminConsolePodAggrLog('openshift-monitoring','alertmanager-main-0');
+    sharedTests.validateContainerLogFields();
+  }
+}
+
+// test cases for DevConsole -> Pod Detail ->Aggregation Logs
+export class devAggrLogsTests extends aggrLogsTests {
+  // show the application logs
+  static selectApplicationLog(){
+    let query = /{ kubernetes_pod_name = "[\w-]+" } | json $/
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+      query = /{ k8s_pod_name = "[\w-]+" }$/
+    }
+    cy.showLogQueryInput();
+    cy.wait(100)
+    cy.byTestID(TestIds.LogsQueryInput)
+      .find('textarea')
+      .invoke('val')
+      .then((val) => {
+        expect(val).to.match(query);
+      })
+    cy.assertAppLogsInLogsTable();
+  }
 }

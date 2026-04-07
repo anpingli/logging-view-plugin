@@ -1,100 +1,17 @@
 import { TestIds } from '../../../src/test-ids';
-import { isDevConsoleReady, observeLogTest, commonTest, getRunningPodName } from './testUtils.cy.ts';
-import { APP_NAMESPACE1,APP_NAMESPACE2,APP_MESSAGE } from './testUtils.cy.ts';
+import { testData } from '../../fixtures/data-test';
+import { isDevConsoleReady, devObsLogsTests } from './testUtils.cy';
 
 let SKIPALL= false
-
-function devConsoleObsTest(){
-  it('validate elements in dev observeLogs',{tags:['@devobserv']}, () => {
-    const commonElements = [
-      TestIds.ToggleHistogramButton,
-      TestIds.TimeRangeDropdown,
-      TestIds.RefreshIntervalDropdown,
-      TestIds.SyncButton,
-      TestIds.AvailableAttributes,
-      TestIds.SeverityDropdown,
-      TestIds.ShowStatsToggle,
-      TestIds.ExecuteVolumeButton,
-      TestIds.ExecuteQueryButton,
-      TestIds.ShowQueryToggle,
-      TestIds.LogsTable,
-    ];
-    commonElements.forEach(id => {
-      cy.byTestID(id).should('exist');
-    });
-
-    cy.byTestID(TestIds.TenantToggle).should('not.exist'); //Specical feature
-    cy.byTestID(TestIds.AttributeFilters).within(() => {
-      cy.byTestID(TestIds.AvailableAttributes).click();
-      cy.contains('li', 'Content');
-      cy.contains('li', 'Pod');
-      cy.contains('li', 'Containers');
-      cy.contains('li', 'Namespaces');
-    })
-    if (Cypress.env('CLUSTERLOGGING_DATAMODE') === "select" ) {
-      cy.byTestID(TestIds.SchemaToggle).should('exist');
-    }
-  })
-
-  it('selected containers',{tags:['@devobserv']}, () => {
-    getRunningPodName(APP_NAMESPACE1).as('pod1Name');
-    getRunningPodName(APP_NAMESPACE2).as('pod2Name');
-
-    cy.get('@pod1Name').then((pod1Name) => {
-      cy.get('@pod2Name').then((pod2Name) => {
-        //const containers = [`${pod1Name} / centos-logtest`,`${pod2Name} / centos-logtest`]
-        //cy.log(`container1=${pod1Name} / centos-logtest, container2=${pod2Name} / centos-logtest`);
-	const containers = ['centos-logtest']
-	cy.log('containers = centos-logtest')
-	cy.checkLogContainers(containers);
-
-        cy.showLogQueryInput();
-        let pattern = /{ kubernetes_container_name="centos-logtest", kubernetes_pod_name=~"centos-logtest-\w+|centos-logtest-\w+" } | json/;
-        if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
-          pattern = /{ k8s_container_name="centos-logtest", k8s_pod_name=~"centos-logtest-\w+|centos-logtest-\w+" } /;
-        }
-        cy.byTestID(TestIds.LogsQueryInput)
-          .find('textarea')
-          .invoke('val')
-          .should('match', pattern);
-        cy.byTestID(TestIds.ExecuteQueryButton).click();
-        const indexFields : IndexField = [
-          { name: 'k8s_namespace_name', value: `${APP_NAMESPACE1}|${APP_NAMESPACE2}` },
-          { name: 'k8s_pod_name', value: `${pod1Name}|${pod2Name}` },
-          { name: 'k8s_container_name', value: 'centos-logtest' },
-        ]
-        cy.assertFieldsInLogDetail(indexFields)
-      });
-    });
-  })
-
-}
-
-function devConsoleUserObsTest(){
-  it('user can not display infra logs',{tags:['@smoke','@devobserv']}, () => {
-    let query='{{}  kubernetes_namespace_name="openshift-monitoring" {}}'
-    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
-        query='{{} k8s_namespace_name="openshift-monitoring" {}}'
-    }
-    cy.runLogQuery(query);
-    cy.getByTestId(TestIds.LogsTable).within(() => {
-       cy.get('.lv-plugin__table__row-error').should('exist');
-       // It may  report error below
-       //-' DateMessageDanger alert:{"error":"400 Bad Request","errorType":"observatorium-api","status":"error"}\n'
-       //+'Warning alert:No datapoints found'
-    });
-  });
-}
 
 describe('DevConsole: Admin in ObserveLogs', { tags: ['@admin'] }, () => {
   before( function() {
     //Check if DevConsole is ready
     isDevConsoleReady().then((ready) => {
       if (!ready) {
-        cy.task('log','DeveloperConsole is not ready — skipping suite');
         SKIPALL= true
+        cy.task('log','DeveloperConsole is not ready — skipping suite');
         this.skip()
-	return;      // stop execution in this callback
       }
     });
     cy.uiLoginAsClusterAdminForUser("first");
@@ -102,9 +19,9 @@ describe('DevConsole: Admin in ObserveLogs', { tags: ['@admin'] }, () => {
   });
 
   beforeEach( function() {
-    // reload observe->logs for current pod in APP_NAMESPACE1
+    // reload observe->logs for current pod in testData.appNamespace1
     cy.clickNavLink(['Observe'])
-    cy.changeNamespace(APP_NAMESPACE1)
+    cy.changeNamespace(testData.appNamespace1)
     cy.byLegacyTestID('horizontal-link-Logs').click();
     cy.assertLogsInLogsTable();
   });
@@ -115,11 +32,51 @@ describe('DevConsole: Admin in ObserveLogs', { tags: ['@admin'] }, () => {
     }
   });
 
-  devConsoleObsTest();
-  observeLogTest();
-  commonTest();
+  it('validate elements in dev observeLogs',{tags:['@devobserv','@logui-3001']}, () => {
+    devObsLogsTests.validateElements();
+  });
 
-  it('admin can display infra logs',{tags:['@smoke','@devobserv']}, () => {
+  it('selected containers',{tags:['@devobserv','@logui-3002']}, () => {
+    devObsLogsTests.selectContainers();
+  });
+
+  it('display applicatioins logs',{tags:['@common','@logui-3003']}, () => {
+    devObsLogsTests.selectApplicationLog();
+  });
+
+  it('Show Resources',{tags:['@common','@logui-3004']}, () => {
+    devObsLogsTests.showResources();
+  });
+
+  it('selected namespaces',{tags:['@observ','@logui-3005']}, () => {
+    devObsLogsTests.selectNamespaces();
+  });
+
+  it('select both running and deleted pods',{tags:['@observ','@logui-3006']}, () => {
+    devObsLogsTests.selectPods();
+  });
+
+  it('Search by content ',{tags:['@common','@level0','@logui-3007']}, () => {
+    devObsLogsTests.searchContent();
+  });
+
+  it('filter logs by last duration ',{tags:['@common','level0','@log-3008']}, () => {
+    devObsLogsTests.filterByTimeDuration();
+  });
+
+  it('filter logs by custom range',{tags:['@common','level0','@logui-3009']}, () => {
+   devObsLogsTests.filterByTimeRange();
+  });
+
+  it('switch the dataFormat',{tags:['@common','@logui-3010']},function() {
+    devObsLogsTests.switchDataSchema(this);
+  });
+
+  it('validate log format for application container',{tags:['@common','@logui-3011']}, () => {
+    devObsLogsTests.validateAppContainerLogFields();
+  });
+
+  it('admin can display infra logs',{tags:['@devobserv','@level0', '@logui-3012']}, () => {
     // reload observe->logs
     cy.changeNamespace('openshift-monitoring');
 
@@ -135,90 +92,157 @@ describe('DevConsole: Admin in ObserveLogs', { tags: ['@admin'] }, () => {
     cy.assertInfraLogsInLogsTable();
   });
 
-  it('admin can not query without namespace',{tags:['@smoke','@devobserv']}, () => {
+  it('admin can not query without namespace',{tags:['@smoke','@devobserv', '@logui-3013']}, () => {
     let queryText = `{{}log_type="infrastructure" {}}`
     cy.showLogQueryInput();
     cy.byTestID(TestIds.LogsQueryInput)
       .find('textarea')
       .clear()
-      .type(queryText, { delay: 0 })
+      .type(queryText, { delay: 0 });
     cy.byTestID(TestIds.ExecuteQueryButton).should('be.disabled');
     cy.byTestID(TestIds.LogsQueryInput)
       .should('contain.text', 'Please select a namespace');
   });
-})
+});
 
-describe('DevConsole: Impersonate User in ObserveLogs',{ tags: ['@devobserv'] },  () => {
+describe('DevConsole: Impersonate User in ObserveLogs',{ tags: ['@devobserv','@logui-3014'] },  () => {
   before( function() {
     //Check if DevConsole is ready
     isDevConsoleReady().then((ready) => {
       if (!ready) {
-        cy.task('log','DeveloperConsole is not ready — skipping suite');
         SKIPALL= true
-        this.skip();
-	return;      // stop execution in this callback
+        cy.task('log','DeveloperConsole is not ready — skipping suite');
+        this.skip()
       }
     });
     cy.cliLoginAsUser("second");
-    cy.grantLogViewRolesToUser("second", `${APP_NAMESPACE1}`);
-    cy.grantLogViewRolesToUser("second", `${APP_NAMESPACE2}`);
+    cy.grantLogViewRolesToUser("second", testData.appNamespace1);
+    cy.grantLogViewRolesToUser("second", testData.appNamespace2);
     cy.uiLoginAsClusterAdminForUser("first");
     cy.uiImpersonateUser("second");
     cy.switchToDevConsole();
   });
 
   beforeEach( function() {
-    // reload observe->logs for current pod in APP_NAMESPACE1
+    // reload observe->logs for current pod in testData.appNamespace1
     cy.clickNavLink(['Observe'])
-    cy.changeNamespace(APP_NAMESPACE1)
+    cy.changeNamespace(testData.appNamespace1)
     cy.byLegacyTestID('horizontal-link-Logs').click();
   }); 
 
   after( function() {
     if (!SKIPALL) {
       cy.uiLogoutUser("second");
-      cy.removeLogViewRolesFromUser("second", `${APP_NAMESPACE1}`);
-      cy.removeLogViewRolesFromUser("second", `${APP_NAMESPACE2}`);
+      cy.removeLogViewRolesFromUser("second", testData.appNamespace1);
+      cy.removeLogViewRolesFromUser("second", testData.appNamespace2);
     }
   });
-  devConsoleObsTest();
-  devConsoleUserObsTest();
-  observeLogTest();
-  commonTest();
-})
+
+  it('validate elements in dev observeLogs',{tags:['@devobserv','@level0','@logui-3015']}, () => {
+    devObsLogsTests.validateElements();
+  });
+
+  it('display applicatioins logs',{tags:['@common','@level0','@logui-3018']}, () => {
+    devObsLogsTests.selectApplicationLog();
+  });
+
+  it('user can not display infra logs',{tags:['@devobserv','@logui-3017']}, () => {
+    let query='{{}  kubernetes_namespace_name="openshift-monitoring" {}}'
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+        query='{{} k8s_namespace_name="openshift-monitoring" {}}'
+    }
+    cy.runLogQuery(query);
+    cy.byTestID(TestIds.LogsTable).then(($alert) => {
+        const fullText = $alert.text();
+        expect(fullText).to.include('Warning alert:');
+        expect(fullText).to.include('No datapoints found');
+    });
+  });
+
+});
 
 describe('DevConsole: User in ObserveLogs', { tags: ['@user'] }, () => {
   before( function() {
     //Check if DevConsole is ready
     isDevConsoleReady().then((ready) => {
       if (!ready) {
-        cy.task('log','DeveloperConsole is not ready — skipping suite');
         SKIPALL= true
+        cy.task('log','DeveloperConsole is not ready — skipping suite');
         this.skip()
-	return;      // stop execution in this callback
       }
     });
-    cy.grantLogViewRolesToUser("second", `${APP_NAMESPACE1}`);
-    cy.grantLogViewRolesToUser("second", `${APP_NAMESPACE2}`);
+
+    cy.grantLogViewRolesToUser("second", testData.appNamespace1);
+    cy.grantLogViewRolesToUser("second", testData.appNamespace2);
     cy.uiLoginAsUser("second");
     cy.switchToDevConsole();
   });
 
   beforeEach( function() {
     cy.clickNavLink(['Observe'])
-    cy.changeNamespace(APP_NAMESPACE1)
+    cy.changeNamespace(testData.appNamespace1)
     cy.byLegacyTestID('horizontal-link-Logs').click();
   }); 
 
   after( function() {
     if (!SKIPALL) {
       cy.uiLogoutUser("second");
-      cy.removeLogViewRolesFromUser("second", `${APP_NAMESPACE1}`);
-      cy.removeLogViewRolesFromUser("second", `${APP_NAMESPACE2}`);
+      cy.removeLogViewRolesFromUser("second", testData.appNamespace1);
+      cy.removeLogViewRolesFromUser("second", testData.appNamespace2);
     }
   });
-  devConsoleObsTest();
-  devConsoleUserObsTest();
-  observeLogTest();
-  commonTest();
-})
+
+  it('validate elements in dev observeLogs',{tags:['@devobserv','@level0','@logui-3027']}, () => {
+    devObsLogsTests.validateElements();
+  });
+
+  it('selected containers',{tags:['@devobserv','@level0','@logui-3028']}, () => {
+    devObsLogsTests.selectContainers();
+  });
+
+
+  it('user can not display infra logs',{tags:['@devobserv','@logui-3017']}, () => {
+    let query='{{}  kubernetes_namespace_name="openshift-monitoring" {}}'
+    if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
+        query='{{} k8s_namespace_name="openshift-monitoring" {}}'
+    }
+
+    cy.runLogQuery(query);
+    cy.get('.lv-plugin__table__row-error').then(($alert) => {
+        const fullText = $alert.text();
+        expect(fullText).to.include('Forbidden');
+        expect(fullText).to.include('Missing permissions to get logs in this namespace');
+        expect(fullText).to.include('You do not have permissions to view logs in the selected namespace.');
+        expect(fullText).to.include('apiVersion: rbac.authorization.k8s.io');
+        expect(fullText).to.include('kind: RoleBinding');
+        expect(fullText).to.include('name: view-application-logs');
+        expect(fullText).to.include('"name: cluster-logging-application-view');
+    });
+  });
+
+  it('display applicatioins logs',{tags:['@common','@level0','@logui-3029']}, () => {
+    devObsLogsTests.selectApplicationLog();
+  });
+
+  it('Show Resources',{tags:['@common','@logui-3030']}, () => {
+    devObsLogsTests.showResources();
+  });
+  it('selected namespaces',{tags:['@observ','level0','@logui-3031']}, () => {
+    devObsLogsTests.selectNamespaces();
+  });
+  it('select both running and deleted pods',{tags:['@observ','@logui-3032']}, () => {
+    devObsLogsTests.selectPods();
+  });
+
+  it('Search by content ',{tags:['@common','@level0','@logui-3033']}, () => {
+    devObsLogsTests.searchContent();
+  });
+
+  it('filter logs by last duration ',{tags:['@common','level0','@log-0034']}, () => {
+    devObsLogsTests.filterByTimeDuration();
+  });
+
+  it('filter logs by custom range',{tags:['@common','level0','@logui-3035']}, () => {
+    devObsLogsTests.filterByTimeRange();
+  });
+});
