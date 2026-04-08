@@ -1,6 +1,6 @@
 import { nav } from '../../views/nav';
 import { guidedTour } from '../../views/tour';
-import { admin_kubeconfig, normal_kubeconfig, Rank} from '../../fixtures/data-test';
+import { adminKubeconfig, normalKubeconfig, rankIndex} from '../../fixtures/data-test';
 
 export { };
 declare global {
@@ -420,15 +420,15 @@ Cypress.Commands.add('cliLoginAsUser', (index: string) => {
   cy.log(`login as the ${index} user`);
   let username="";
   let userpassword="";
-  cy.readFile(admin_kubeconfig)
-    .then(content => cy.writeFile(normal_kubeconfig, content));
+  cy.readFile(adminKubeconfig)
+    .then(content => cy.writeFile(normalKubeconfig, content));
 
   if (Cypress.env('LOGIN_USERS')){
-    username=Cypress.env('LOGIN_USERS').split(',')[Rank.toIndex[index]].split(':')[0];
-    userpassword=Cypress.env('LOGIN_USERS').split(',')[Rank.toIndex[index]].split(':')[1];
+    username=Cypress.env('LOGIN_USERS').split(',')[rankIndex[index]].split(':')[0];
+    userpassword=Cypress.env('LOGIN_USERS').split(',')[rankIndex[index]].split(':')[1];
   }
   if( username != "" && userpassword != "" ){
-    cy.exec(`oc login -u ${username} -p ${userpassword}  --kubeconfig=${normal_kubeconfig}`);
+    cy.exec(`oc login -u ${username} -p ${userpassword}  --kubeconfig=${normalKubeconfig}`);
   }else{
     cy.log('no user can be found.');
     cy.exit();
@@ -441,8 +441,8 @@ Cypress.Commands.add('uiLoginAsUser', (index: string) => {
   let username="";
   let userpassword="";
   if (Cypress.env('LOGIN_USERS')){
-    username=Cypress.env('LOGIN_USERS').split(',')[Rank.toIndex[index]].split(':')[0];
-    userpassword=Cypress.env('LOGIN_USERS').split(',')[Rank.toIndex[index]].split(':')[1];
+    username=Cypress.env('LOGIN_USERS').split(',')[rankIndex[index]].split(':')[0];
+    userpassword=Cypress.env('LOGIN_USERS').split(',')[rankIndex[index]].split(':')[1];
   }
   const oauth_url=getOauthUrl()
   if( username != "" && userpassword != "" && Cypress.env('LOGIN_IDP') != "" ){
@@ -461,8 +461,8 @@ Cypress.Commands.add('uiLoginAsClusterAdminForUser', (index: string) => {
   let username="";
   let userpassword="";
   if (Cypress.env('LOGIN_USERS')){
-    username=Cypress.env('LOGIN_USERS').split(',')[Rank.toIndex[index]].split(':')[0];
-    userpassword=Cypress.env('LOGIN_USERS').split(',')[Rank.toIndex[index]].split(':')[1];
+    username=Cypress.env('LOGIN_USERS').split(',')[rankIndex[index]].split(':')[0];
+    userpassword=Cypress.env('LOGIN_USERS').split(',')[rankIndex[index]].split(':')[1];
   }
   const oauth_url=getOauthUrl()
   if( username != "" && userpassword != "" && Cypress.env('LOGIN_IDP') != "" ){
@@ -484,7 +484,7 @@ Cypress.Commands.add('uiLogoutClusterAdminForUser', (index: string) => {
   cy.log('Logout the ${index} user and remove the cluster admin roles');
   let username = "";
   if (Cypress.env('LOGIN_USERS')){
-    username=Cypress.env('LOGIN_USERS').split(',')[Rank.toIndex[index]].split(':')[0];
+    username=Cypress.env('LOGIN_USERS').split(',')[rankIndex[index]].split(':')[0];
   }
   if( username != "" ){
     cy.adminCLI(`oc adm policy remove-cluster-role-from-user cluster-admin ${username}`);
@@ -496,7 +496,7 @@ Cypress.Commands.add('uiImpersonateUser', (index: string) => {
   cy.log(`Cluster Admin Impersonate the ${index} user `);
   let username = "";
   if (Cypress.env('LOGIN_USERS')){
-    username=Cypress.env('LOGIN_USERS').split(',')[Rank.toIndex[index]].split(':')[0];
+    username=Cypress.env('LOGIN_USERS').split(',')[rankIndex[index]].split(':')[0];
   }
   if( username == "" ){
     cy.log(`can not find the ${index} user.`);

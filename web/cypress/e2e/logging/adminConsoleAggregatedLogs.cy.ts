@@ -3,7 +3,7 @@ import { testData } from '../../fixtures/data-test';
 
 describe('AdminConsole: Admin in AggregatedLogs', { tags: ['@admin'] }, () => {
   before( function() {
-    cy.uiLoginAsClusterAdminForUser("first");
+    cy.uiLoginAsClusterAdminForUser("First");
   });
 
   beforeEach( function() {
@@ -11,7 +11,7 @@ describe('AdminConsole: Admin in AggregatedLogs', { tags: ['@admin'] }, () => {
   });
 
   after( function() {
-    cy.uiLogoutClusterAdminForUser("first");
+    cy.uiLogoutClusterAdminForUser("First");
   });
 
   it('validate elements in Aggregated Logs',{tags:['@aggr','@logui-1000']}, () => {
@@ -50,18 +50,18 @@ describe('AdminConsole: Admin in AggregatedLogs', { tags: ['@admin'] }, () => {
     aggrLogsTests.switchDataSchema(this);
   });
 
-  it('admin can display infra container logs',{tags:['@aggr','@level0','@logui-1010']}, () => {
+  it('admin can display infra container logs',{tags:['@aggr','@level0','@logui-1009']}, () => {
     aggrLogsTests.validateInfraContainerLogFields()
   });
 });
 
 describe('AdminConsole: Impersonate User in AggregatedLogs',{ tags: ['@admin'] }, () => {
   before( function() {
-    cy.grantLogViewRolesToUser("second", testData.appNamespace1);
-    cy.grantLogViewRolesToUser("second", testData.appNamespace2);
-    cy.cliLoginAsUser("second")
-    cy.uiLoginAsClusterAdminForUser("first");
-    cy.uiImpersonateUser("second");
+    cy.grantLogViewRolesToUser("Second", testData.appNamespace1);
+    cy.grantLogViewRolesToUser("Second", testData.appNamespace2);
+    cy.cliLoginAsUser("Second")
+    cy.uiLoginAsClusterAdminForUser("First");
+    cy.uiImpersonateUser("Second");
     cy.switchToAdmConsole();
   });
 
@@ -70,25 +70,25 @@ describe('AdminConsole: Impersonate User in AggregatedLogs',{ tags: ['@admin'] }
   });
 
   after( function() {
-    cy.uiLogoutUser("second");
-    cy.removeLogViewRolesFromUser("second", testData.appNamespace1);
-    cy.removeLogViewRolesFromUser("second", testData.appNamespace2);
+    cy.uiLogoutUser("Second");
+    cy.removeLogViewRolesFromUser("Second", testData.appNamespace1);
+    cy.removeLogViewRolesFromUser("Second", testData.appNamespace2);
   });
 
-  it('display applicatioins logs',{tags:['@common','@level0','@logui-1011']}, () => {
+  it('display applicatioins logs',{tags:['@common','@level0','@logui-1010']}, () => {
     cy.assertAppLogsInLogsTable();
   });
 
-  it('select both running and deleted pods',{tags:['@aggr','@logui-1014']}, () => {
+  it('select both running and deleted pods',{tags:['@aggr','@logui-1011']}, () => {
     aggrLogsTests.selectPods();
   });
 });
 
 describe('AdminConsole: User in Aggregated Logs', { tags: ['@user'] }, () => {
   before( function() {
-    cy.grantLogViewRolesToUser("second", testData.appNamespace1);
-    cy.grantLogViewRolesToUser("second", testData.appNamespace2);
-    cy.uiLoginAsUser("second");
+    cy.grantLogViewRolesToUser("Second", testData.appNamespace1);
+    cy.grantLogViewRolesToUser("Second", testData.appNamespace2);
+    cy.uiLoginAsUser("Second");
   });
 
   beforeEach( function() {
@@ -96,44 +96,44 @@ describe('AdminConsole: User in Aggregated Logs', { tags: ['@user'] }, () => {
   });
 
   after( function() {
-    cy.uiLogoutUser("second");
-    cy.removeLogViewRolesFromUser("second", testData.appNamespace1);
-    cy.removeLogViewRolesFromUser("second", testData.appNamespace2);
+    cy.uiLogoutUser("Second");
+    cy.removeLogViewRolesFromUser("Second", testData.appNamespace1);
+    cy.removeLogViewRolesFromUser("Second", testData.appNamespace2);
   });
 
-  it('validate elements in Aggregated Logs',{tags:['@aggr','@level0','@logui-1022']}, () => {
+  it('validate elements in Aggregated Logs',{tags:['@aggr','@level0','@logui-1012']}, () => {
     aggrLogsTests.validateElements();
   });
 
-  it('display applicatioins logs',{tags:['@common','@level0','@logui-1021']}, () => {
+  it('display applicatioins logs',{tags:['@common','@level0','@logui-1013']}, () => {
     cy.assertAppLogsInLogsTable();
   });
 
-  it('Show Resources',{tags:['@common','@level0','@logui-1023']}, () => {
+  it('Show Resources',{tags:['@common','@level0','@logui-1014']}, () => {
     aggrLogsTests.showResources();
   });
 
-  it('select both running and deleted pods',{tags:['@aggr', '@level0', '@logui-1024']}, () => {
+  it('select both running and deleted pods',{tags:['@aggr', '@level0', '@logui-1015']}, () => {
     aggrLogsTests.selectPods();
   });
 
-  it('selected containers',{tags:['@aggr','@level0','@logui-1025']}, () => {
+  it('selected containers',{tags:['@aggr','@level0','@logui-1016']}, () => {
     aggrLogsTests.selectContainers();
   });
 
-  it('Search by content ',{tags:['@common','@level0','@logui-1026']}, () => {
+  it('Search by content ',{tags:['@common','@level0','@logui-1017']}, () => {
     aggrLogsTests.searchContent();
   });
 
-  it('filter logs by last duration ',{tags:['@common','level0','@log-1027']}, () => {
+  it('filter logs by last duration ',{tags:['@common','level0','@log-1018']}, () => {
     aggrLogsTests.filterByTimeDuration();
   });
   
-  it('filter logs by custom range',{tags:['@common','level0','@logui-1028']}, () => {
+  it('filter logs by custom range',{tags:['@common','level0','@logui-1019']}, () => {
     aggrLogsTests.filterByTimeRange();
   });
 
-  it('validate app container logs fileds',{tags:['@aggr','@level0','@logui-1010']}, () => {
+  it('validate app container logs fileds',{tags:['@aggr','@level0','@logui-1020']}, () => {
     aggrLogsTests.validateAppContainerLogFields();
   });
 

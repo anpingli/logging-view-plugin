@@ -14,7 +14,7 @@ describe('DevConsole: Admin in ObserveLogs', { tags: ['@admin'] }, () => {
         this.skip()
       }
     });
-    cy.uiLoginAsClusterAdminForUser("first");
+    cy.uiLoginAsClusterAdminForUser("First");
     cy.switchToDevConsole();
   });
 
@@ -28,7 +28,7 @@ describe('DevConsole: Admin in ObserveLogs', { tags: ['@admin'] }, () => {
 
   after( function() {
     if (!SKIPALL) {
-      cy.uiLogoutClusterAdminForUser("first");
+      cy.uiLogoutClusterAdminForUser("First");
     }
   });
 
@@ -105,7 +105,7 @@ describe('DevConsole: Admin in ObserveLogs', { tags: ['@admin'] }, () => {
   });
 });
 
-describe('DevConsole: Impersonate User in ObserveLogs',{ tags: ['@devobserv','@logui-3014'] },  () => {
+describe('DevConsole: Impersonate User in ObserveLogs',{ tags: ['@devobserv'] },  () => {
   before( function() {
     //Check if DevConsole is ready
     isDevConsoleReady().then((ready) => {
@@ -115,11 +115,11 @@ describe('DevConsole: Impersonate User in ObserveLogs',{ tags: ['@devobserv','@l
         this.skip()
       }
     });
-    cy.cliLoginAsUser("second");
-    cy.grantLogViewRolesToUser("second", testData.appNamespace1);
-    cy.grantLogViewRolesToUser("second", testData.appNamespace2);
-    cy.uiLoginAsClusterAdminForUser("first");
-    cy.uiImpersonateUser("second");
+    cy.cliLoginAsUser("Second");
+    cy.grantLogViewRolesToUser("Second", testData.appNamespace1);
+    cy.grantLogViewRolesToUser("Second", testData.appNamespace2);
+    cy.uiLoginAsClusterAdminForUser("First");
+    cy.uiImpersonateUser("Second");
     cy.switchToDevConsole();
   });
 
@@ -132,21 +132,21 @@ describe('DevConsole: Impersonate User in ObserveLogs',{ tags: ['@devobserv','@l
 
   after( function() {
     if (!SKIPALL) {
-      cy.uiLogoutUser("second");
-      cy.removeLogViewRolesFromUser("second", testData.appNamespace1);
-      cy.removeLogViewRolesFromUser("second", testData.appNamespace2);
+      cy.uiLogoutUser("Second");
+      cy.removeLogViewRolesFromUser("Second", testData.appNamespace1);
+      cy.removeLogViewRolesFromUser("Second", testData.appNamespace2);
     }
   });
 
-  it('validate elements in dev observeLogs',{tags:['@devobserv','@level0','@logui-3015']}, () => {
+  it('validate elements in dev observeLogs',{tags:['@devobserv','@level0','@logui-3014']}, () => {
     devObsLogsTests.validateElements();
   });
 
-  it('display applicatioins logs',{tags:['@common','@level0','@logui-3018']}, () => {
+  it('display applicatioins logs',{tags:['@common','@level0','@logui-3015']}, () => {
     devObsLogsTests.selectApplicationLog();
   });
 
-  it('user can not display infra logs',{tags:['@devobserv','@logui-3017']}, () => {
+  it('user can not display infra logs',{tags:['@devobserv','@logui-3016']}, () => {
     let query='{{}  kubernetes_namespace_name="openshift-monitoring" {}}'
     if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
         query='{{} k8s_namespace_name="openshift-monitoring" {}}'
@@ -172,9 +172,9 @@ describe('DevConsole: User in ObserveLogs', { tags: ['@user'] }, () => {
       }
     });
 
-    cy.grantLogViewRolesToUser("second", testData.appNamespace1);
-    cy.grantLogViewRolesToUser("second", testData.appNamespace2);
-    cy.uiLoginAsUser("second");
+    cy.grantLogViewRolesToUser("Second", testData.appNamespace1);
+    cy.grantLogViewRolesToUser("Second", testData.appNamespace2);
+    cy.uiLoginAsUser("Second");
     cy.switchToDevConsole();
   });
 
@@ -186,22 +186,21 @@ describe('DevConsole: User in ObserveLogs', { tags: ['@user'] }, () => {
 
   after( function() {
     if (!SKIPALL) {
-      cy.uiLogoutUser("second");
-      cy.removeLogViewRolesFromUser("second", testData.appNamespace1);
-      cy.removeLogViewRolesFromUser("second", testData.appNamespace2);
+      cy.uiLogoutUser("Second");
+      cy.removeLogViewRolesFromUser("Second", testData.appNamespace1);
+      cy.removeLogViewRolesFromUser("Second", testData.appNamespace2);
     }
   });
 
-  it('validate elements in dev observeLogs',{tags:['@devobserv','@level0','@logui-3027']}, () => {
+  it('validate elements in dev observeLogs',{tags:['@devobserv','@level0','@logui-3017']}, () => {
     devObsLogsTests.validateElements();
   });
 
-  it('selected containers',{tags:['@devobserv','@level0','@logui-3028']}, () => {
+  it('selected containers',{tags:['@devobserv','@level0','@logui-3018']}, () => {
     devObsLogsTests.selectContainers();
   });
 
-
-  it('user can not display infra logs',{tags:['@devobserv','@logui-3017']}, () => {
+  it('user can not display infra logs',{tags:['@devobserv','@logui-3019']}, () => {
     let query='{{}  kubernetes_namespace_name="openshift-monitoring" {}}'
     if (String(Cypress.env('CLUSTERLOGGING_DATAMODE')) === "otel") {
         query='{{} k8s_namespace_name="openshift-monitoring" {}}'
@@ -216,33 +215,33 @@ describe('DevConsole: User in ObserveLogs', { tags: ['@user'] }, () => {
         expect(fullText).to.include('apiVersion: rbac.authorization.k8s.io');
         expect(fullText).to.include('kind: RoleBinding');
         expect(fullText).to.include('name: view-application-logs');
-        expect(fullText).to.include('"name: cluster-logging-application-view');
+        expect(fullText).to.include('name: cluster-logging-application-view');
     });
   });
 
-  it('display applicatioins logs',{tags:['@common','@level0','@logui-3029']}, () => {
+  it('display applicatioins logs',{tags:['@common','@level0','@logui-3020']}, () => {
     devObsLogsTests.selectApplicationLog();
   });
 
-  it('Show Resources',{tags:['@common','@logui-3030']}, () => {
+  it('Show Resources',{tags:['@common','@logui-3021']}, () => {
     devObsLogsTests.showResources();
   });
-  it('selected namespaces',{tags:['@observ','level0','@logui-3031']}, () => {
+  it('selected namespaces',{tags:['@observ','level0','@logui-3022']}, () => {
     devObsLogsTests.selectNamespaces();
   });
-  it('select both running and deleted pods',{tags:['@observ','@logui-3032']}, () => {
+  it('select both running and deleted pods',{tags:['@observ','@logui-3023']}, () => {
     devObsLogsTests.selectPods();
   });
 
-  it('Search by content ',{tags:['@common','@level0','@logui-3033']}, () => {
+  it('Search by content ',{tags:['@common','@level0','@logui-3024']}, () => {
     devObsLogsTests.searchContent();
   });
 
-  it('filter logs by last duration ',{tags:['@common','level0','@log-0034']}, () => {
+  it('filter logs by last duration ',{tags:['@common','level0','@log-0025']}, () => {
     devObsLogsTests.filterByTimeDuration();
   });
 
-  it('filter logs by custom range',{tags:['@common','level0','@logui-3035']}, () => {
+  it('filter logs by custom range',{tags:['@common','level0','@logui-3026']}, () => {
     devObsLogsTests.filterByTimeRange();
   });
 });

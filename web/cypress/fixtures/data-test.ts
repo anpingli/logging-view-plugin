@@ -189,7 +189,10 @@ export const Classes = {
   IndividualTag: '.pf-v6-c-label__text, .pf-v5-c-chip__text',
   LabelTag: '.pf-v6-c-label__text, .pf-v5-c-label__text',
   MainTag: '.pf-v6-c-label-group__label, .pf-v5-c-chip-group__label',
-  MenuItem: '.pf-v6-c-menu__item, .pf-c-dropdown__menu-item',
+  MenuDiv: '.pf-v6-c-menu',
+  MenuDivContent: '.pf-v6-c-menu__content',
+  MenuUl: '.pf-v6-c-menu__list',
+  MenuItem: '.pf-v6-c-menu__item',
   MenuItemDisabled: '.pf-v6-c-menu__list-item.pf-m-aria-disabled',
   MenuToggle: '.pf-v6-c-menu-toggle, .pf-c-dropdown__toggle',
   MetricsPagePredefinedQueriesMenuItem: '.pf-v6-c-menu__item, .pf-v5-c-select__menu-item',
@@ -213,8 +216,8 @@ export const Classes = {
   SilenceKebabDropdown: '.pf-v6-c-menu-toggle.pf-m-plain, .pf-v5-c-dropdown__toggle.pf-m-plain',
   SilenceLabelRow: '.pf-v6-l-grid.pf-m-all-12-col-on-sm.pf-m-all-4-col-on-md.pf-m-gutter, .row',
   SilenceState: '.pf-v6-l-stack__item, .co-break-word',
-  LogDetail: 'pf-v5-c-table__td lv-plugin__table__details',
-  LogToolbar: 'pf-v5-c-toolbar__content-section',
+  LogDetail: '.pf-v5-c-table__td.lv-plugin__table__details, .pf-v6-c-table__td.lv-plugin__table__details',
+  LogToolbar: '.pf-v5-c-toolbar__content-section, .pf-v6-c-toolbar__content-section,',
 };
 
 export const persesAriaLabels = {
@@ -243,17 +246,6 @@ export const testData = {
   hostnameRegex: /[a-zA-Z0-9][-a-zA-Z0-9.]+[a-zA-Z0-9]/,
 };
 
-export const admin_kubeconfig = Cypress.env('KUBECONFIG_PATH');
-
-export const normal_kubeconfig = "/tmp/logging_ui_kubeconfig";
-
-export const Rank = {
-  toIndex: {
-    first: 0,
-    second: 1,
-    third: 2,
-    fourth: 3,
-    fifth: 4,
-  }
-};
-
+export const adminKubeconfig = Cypress.env('KUBECONFIG_PATH');
+export const normalKubeconfig = "/tmp/logging_ui_kubeconfig";
+export const enum rankIndex { First = 0, Second = 1, Third = 2, Fourth = 3, Fifth = 4, }

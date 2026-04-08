@@ -3,7 +3,7 @@
 import 'cypress-wait-until';
 import { guidedTour } from '../../views/tour';
 import { TestIds } from '../../../src/test-ids';
-import { Classes, admin_kubeconfig, normal_kubeconfig, Rank } from '../../fixtures/data-test';
+import { Classes, adminKubeconfig, normalKubeconfig, rankIndex } from '../../fixtures/data-test';
 import * as helperfuncs from '../views/utils';
 
 declare global {
@@ -36,7 +36,7 @@ declare global {
 }
 
 Cypress.Commands.add("getLogToolbar", () => {
-  cy.byClass(Classes.LogToolbar);
+  cy.get(Classes.LogToolbar);
 })
 
 Cypress.Commands.add("showLogQueryInput", () => {
@@ -69,7 +69,7 @@ Cypress.Commands.add("runLogQuery", (logQL: string) => {
 Cypress.Commands.add('grantLogViewRolesToUser', (index: string, project: string) => {
   let username="";
   if (Cypress.env('LOGIN_USERS')){
-    username=Cypress.env('LOGIN_USERS').split(',')[Rank.toIndex[index]].split(':')[0];
+    username=Cypress.env('LOGIN_USERS').split(',')[rankIndex[index]].split(':')[0];
     if( username != "" ){
       cy.exec(`oc -n ${project} policy add-role-to-user view ${username}`);
       cy.exec(`oc -n ${project} policy add-role-to-user cluster-logging-application-view ${username}`);
@@ -86,7 +86,7 @@ Cypress.Commands.add('grantLogViewRolesToUser', (index: string, project: string)
 Cypress.Commands.add('removeLogViewRolesFromUser', (index: string, project: string) => {
   let username="";
   if (Cypress.env('LOGIN_USERS')){
-    username=Cypress.env('LOGIN_USERS').split(',')[Rank.toIndex[index]].split(':')[0];
+    username=Cypress.env('LOGIN_USERS').split(',')[rankIndex[index]].split(':')[0];
     if( username != "" ){
       cy.exec(`oc -n ${project} policy remove-role-from-user view ${username}`, { failOnNonZeroExit: false });
       cy.exec(`oc -n ${project} policy remove-role-from-user cluster-logging-application-view ${username}`, { failOnNonZeroExit: false });
@@ -136,7 +136,7 @@ Cypress.Commands.add('assertFieldsInLogDetail', (indexFields: IndexField[]) => {
       })
 
     // check the fields in detail
-    cy.byClass(Classes.LogDetail,{ timeout: 20000 })
+    cy.get(Classes.LogDetail,{ timeout: 20000 })
       .within(() => {
         indexFields.forEach(field => {
           if (!Cypress._.isEmpty(field.value)) { // skip if value is empty, null, or undefined
@@ -187,9 +187,7 @@ Cypress.Commands.add('assertAuditLogsInLogsTable', () => {
 //select a tenant for logs
 Cypress.Commands.add('selectLogTenant', (tenant: string) => {
   cy.byTestID(TestIds.TenantToggle).click();
-  cy.get('#logging-view-tenant-dropdown')
-    .contains('button', tenant)
-    .click();
+  cy.get(Classes.MenuItem).contains(tenant).click();
   //close the dropdown list
   cy.get('body').click(0, 0);
 })
@@ -197,9 +195,7 @@ Cypress.Commands.add('selectLogTenant', (tenant: string) => {
 //select one Attribute in AttributeFilters
 Cypress.Commands.add('selectLogAttribute', (attribute: string) => {
   cy.byTestID(TestIds.AvailableAttributes).click();
-  cy.byTestID(TestIds.AttributeFilters)
-    .contains('button', attribute)
-    .click();
+  cy.get(Classes.MenuItem).contains(attribute).click();
   //close the dropdown list
   cy.get('body').click(0, 0);
 })
@@ -207,18 +203,15 @@ Cypress.Commands.add('selectLogAttribute', (attribute: string) => {
 //select options from AttributeOptions dropbox
 Cypress.Commands.add('checkLogDropboxOptions', (opts: string[]) => {
   opts.forEach((opt) => {
-    cy.byTestID(TestIds.AttributeOptions)
-      .find('input[type="text"]')  // input the expected options
-      .click()
-      .clear()
-      .type(opt);
-    cy.byTestID(TestIds.AttributeFilters, { timeout: 20000 }).within(() => {
-      cy.contains('[role="listbox"] li', opt, { timeout: 20000 , includeShadowDom: true })
-        .scrollIntoView()            // in case it's offscreen
-        .find('input[type="checkbox"]')
-        .check({ force: true })      // safe: never unchecks if already checked
-        .should('be.checked')
-    });
+    cy.byTestID(TestIds.AttributeOptions).find('input').clear().type(opt)
+    cy.get(Classes.MenuDiv, { timeout: 20000 }).should('exist');
+    cy.get(Classes.MenuItem,  { timeout: 20000 })
+      .each(($li) => {
+         cy.wrap($li)
+          .scrollIntoView()
+          .find('input[type="checkbox"]')
+          .check({ force: true })
+       });
   });
   //close the dropdown panel
   cy.get('body').click(0, 0);
@@ -226,7 +219,9 @@ Cypress.Commands.add('checkLogDropboxOptions', (opts: string[]) => {
 
 //select namespaces from AttributeOptions
 Cypress.Commands.add('checkLogNamespaces', (namespaces: string[]) => {
+
   cy.selectLogAttribute('Namespaces');
+  cy.log("......")
   cy.checkLogDropboxOptions(namespaces);
 })
 

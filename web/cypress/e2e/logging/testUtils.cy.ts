@@ -1,7 +1,7 @@
 //Common logging UI Cases
 //Note: the default namespace is testData.appNamespace1 for all test in this file
 import { TestIds } from '../../../src/test-ids';
-import { testData } from '../../fixtures/data-test';
+import { testData, Classes } from '../../fixtures/data-test';
 
 export function isDevConsoleReady(): boolean {
   //Check if DevConsole is enabled in 4.19+
@@ -611,14 +611,24 @@ export class coreObsLogsTests extends sharedTests {
       cy.byTestID(id).should('exist');
     });
 
+    cy.byTestID(TestIds.AvailableAttributes).click();
+    cy.get(Classes.MenuItem).contains('Content').should('exist');
+    cy.get(Classes.MenuItem).contains('Pod').should('exist');
+    cy.get(Classes.MenuItem).contains('Containers').should('exist');
+    cy.get(Classes.MenuItem).contains('Namespaces').should('exist');
+
+    const severityItems = ["critical","error","warning","debug","info","trace","unknown"]
+    cy.byTestID(TestIds.SeverityDropdown).click();
+    severityItems.forEach(item => {
+      cy.get(Classes.MenuItem).contains(item).should('exist');
+    });
+
     cy.byTestID(TestIds.TenantToggle).should('exist');
-    cy.byTestID(TestIds.AttributeFilters).within(() => {
-      cy.byTestID(TestIds.AvailableAttributes).click();
-      cy.contains('li', 'Content');
-      cy.contains('li', 'Pod');
-      cy.contains('li', 'Containers');
-      cy.contains('li', 'Namespaces');
-    })
+    cy.byTestID(TestIds.TenantToggle).click();
+    cy.get(Classes.MenuItem).contains('application').should('exist');
+    cy.get(Classes.MenuItem).contains('infrastructure').should('exist');
+    cy.get(Classes.MenuItem).contains('audit').should('exist');
+
     if (Cypress.env('CLUSTERLOGGING_DATAMODE') === "select" ) {
       cy.byTestID(TestIds.SchemaToggle).should('exist');
     }
@@ -649,14 +659,20 @@ export class devObsLogsTests extends sharedTests{
       cy.byTestID(id).should('exist');
     });
 
-    cy.byTestID(TestIds.TenantToggle).should('not.exist'); //Specical feature
-    cy.byTestID(TestIds.AttributeFilters).within(() => {
-      cy.byTestID(TestIds.AvailableAttributes).click();
-      cy.contains('li', 'Content');
-      cy.contains('li', 'Pod');
-      cy.contains('li', 'Containers');
-      cy.contains('li', 'Namespaces');
-    })
+    cy.byTestID(TestIds.AvailableAttributes).click();
+    cy.get(Classes.MenuItem).contains('Content').should('exist')
+    cy.get(Classes.MenuItem).contains('Pod').should('exist')
+    cy.get(Classes.MenuItem).contains('Containers').should('exist')
+    cy.get(Classes.MenuItem).contains('Namespaces').should('exist')
+
+    const severityItems = ["critical","error","warning","debug","info","trace","unknown"]
+    cy.byTestID(TestIds.SeverityDropdown).click();
+    severityItems.forEach(item => {
+      cy.get(Classes.MenuItem).contains(item).should('exist');
+    });
+
+    cy.byTestID(TestIds.TenantToggle).should('not.exist');
+
     if (Cypress.env('CLUSTERLOGGING_DATAMODE') === "select" ) {
       cy.byTestID(TestIds.SchemaToggle).should('exist');
     }
@@ -728,20 +744,28 @@ export class aggrLogsTests extends sharedTests {
       cy.byTestID(id).should('exist');
     });
 
-    cy.byTestID(TestIds.TenantToggle).should('not.exist'); //Specical feature
-    cy.byTestID(TestIds.AttributeFilters).within(() => {
-      cy.byTestID(TestIds.AvailableAttributes).click();
-      cy.contains('li', 'Content');
-      cy.contains('li', 'Pod');
-      cy.contains('li', 'Containers');
-      cy.contains('li', 'Namespaces').should('not.exist');
-    })
+    cy.byTestID(TestIds.AvailableAttributes).click();
+    cy.get(Classes.MenuDiv).should('exist')
+    cy.get(Classes.MenuItem).contains('Content').should('exist')
+    cy.get(Classes.MenuItem).contains('Pod').should('exist')
+    cy.get(Classes.MenuItem).contains('Containers').should('exist')
+    cy.get(Classes.MenuItem).contains('Namespaces').should('not.exist')
+    
+    const severityItems = ["critical","error","warning","debug","info","trace","unknown"]
+    cy.byTestID(TestIds.SeverityDropdown).click();
+    severityItems.forEach(item => {
+      cy.get(Classes.MenuItem).contains(item).should('exist');
+    });
+
+    cy.byTestID(TestIds.TenantToggle).should('not.exist'); 
+
     if (Cypress.env('CLUSTERLOGGING_DATAMODE') === "select" ) {
       cy.byTestID(TestIds.SchemaToggle).should('exist');
     }
     if (Cypress.env('LOGGING_UI_TIMEZONE') === "true" ) {
       cy.byLegacyTestID(TestIds.TimezoneDropdown).should('exist');
     }
+
   }
 
   //list pods we want to show. note: both deleted and running pods can be selected. Only pods from current namespace can be selected
